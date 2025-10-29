@@ -1,9 +1,38 @@
-import React, { useState } from 'react';
-import { GoogleIcon } from '../components/icons/GoogleIcon';
+
+import React, { useState, useEffect } from 'react';
 import { SpinnerIcon } from '../components/icons/SpinnerIcon';
+
+// This is a simple function to decode the JWT token from Google
+// In a real app, you would use a library like 'jwt-decode'
+function jwtDecode<T>(token: string): T {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload) as T;
+    } catch (e) {
+        console.error("Failed to decode JWT", e);
+        return {} as T;
+    }
+}
+
+interface GoogleJwtPayload {
+    name: string;
+    email: string;
+    picture: string;
+}
 
 interface LoginViewProps {
     onLogin: (user: { name: string; email: string; avatar?: string }) => void;
+}
+
+// Fix: Declare 'google' on the Window object to resolve TypeScript errors for the Google Sign-In SDK.
+declare global {
+    interface Window {
+        google: any;
+    }
 }
 
 const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
@@ -12,22 +41,49 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
-    const mockLogin = (email: string) => {
+    // This effect will run once the component is mounted
+    useEffect(() => {
+        // Check if the google object is available
+        if (window.google) {
+            window.google.accounts.id.initialize({
+                // =================================================================
+                // === ضع الـ CLIENT ID الخاص بك هنا الذي حصلت عليه من Google Cloud ===
+                // =================================================================
+                client_id: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+                callback: handleGoogleCredentialResponse
+            });
+
+            // Render the Google Sign-In button
+            window.google.accounts.id.renderButton(
+                document.getElementById('google-signin-button'),
+                { theme: 'outline', size: 'large', type: 'standard', text: 'signin_with', locale: 'ar' }
+            );
+        }
+    }, []);
+
+    const handleGoogleCredentialResponse = (response: any) => {
+        setIsSubmitting(true);
+        const userObject = jwtDecode<GoogleJwtPayload>(response.credential);
+        
+        const userProfile = {
+            name: userObject.name,
+            email: userObject.email,
+            avatar: userObject.picture
+        };
+
+        onLogin(userProfile);
+    };
+    
+    // This is still a mock function for email/password login
+    const mockEmailLogin = () => {
         setIsSubmitting(true);
         setError('');
         setTimeout(() => {
-            const mockUser = {
-                name: 'معتز عادل',
-                email: email,
-                avatar: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAxMS8yOS8yM3EVR9UAAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzVxteM2AAABFElEQVR4nO3bQQ2AQBQEwZ3A/c1J3A2cxA38+A4ggZ4ke+1kEuBneAFAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCAAAECBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCBAQCAq5sAASsATp+xHJ4AAAAASUVORK5CYII='
-            };
-            onLogin(mockUser);
+            onLogin({ name: email.split('@')[0], email: email });
+             setIsSubmitting(false);
         }, 1500);
     };
 
-    const handleGoogleLogin = () => {
-        mockLogin('mo3taz.3adel@gmail.com');
-    };
 
     const handleEmailLogin = (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,7 +91,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             setError('الرجاء إدخال البريد الإلكتروني وكلمة المرور.');
             return;
         }
-        mockLogin(email);
+        mockEmailLogin();
     };
 
     return (
@@ -43,14 +99,9 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700">
                 <h2 className="text-3xl font-bold text-center text-white mb-6">تسجيل الدخول إلى محفظتك</h2>
                 
-                <button 
-                    onClick={handleGoogleLogin} 
-                    disabled={isSubmitting}
-                    className="w-full flex items-center justify-center gap-3 bg-slate-200 text-slate-800 font-semibold py-3 px-4 rounded-lg shadow-md transition-transform hover:scale-105 disabled:scale-100 disabled:opacity-70 disabled:cursor-wait"
-                >
-                    <GoogleIcon />
-                    <span>تسجيل الدخول باستخدام جوجل</span>
-                </button>
+                {/* This div will hold the official Google button */}
+                <div id="google-signin-button" className="flex justify-center mb-4 transition-transform hover:scale-105"></div>
+
 
                 <div className="flex items-center my-6">
                     <hr className="flex-grow border-slate-600" />
