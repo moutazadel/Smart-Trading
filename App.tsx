@@ -22,9 +22,7 @@ import ProfileView from './views/ProfileView';
 import LoginView from './views/LoginView';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
 import { auth, db } from './firebaseConfig';
-// Fix: Removed `onAuthStateChanged` from this import as it's a v9 modular function.
-// The `User` type is generally compatible.
-import { User } from 'firebase/auth';
+import firebase from 'firebase/compat/app';
 import { doc, getDoc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 
@@ -42,7 +40,7 @@ const App: React.FC = () => {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [savingsBalance, setSavingsBalance] = useState<number>(0);
     const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [currentUser, setCurrentUser] = useState<firebase.User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeView, setActiveView] = useState<View>(View.Portfolios);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);

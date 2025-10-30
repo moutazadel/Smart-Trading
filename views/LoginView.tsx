@@ -47,9 +47,13 @@ const LoginView: React.FC = () => {
             // Fix: Use the signInWithCredential method from the v8 compat auth object.
             await auth.signInWithCredential(credential);
             // The onAuthStateChanged listener in App.tsx will handle the rest.
-        } catch (error) {
+        } catch (error: any) {
             console.error("Firebase Google Auth Error:", error);
-            setError("حدث خطأ أثناء تسجيل الدخول عبر جوجل. الرجاء المحاولة مرة أخرى.");
+            if (error.code === 'auth/invalid-credential') {
+                setError("فشلت المصادقة باستخدام جوجل. قد يكون هذا الحساب غير مصرح له. جرب حسابًا آخر.");
+            } else {
+                setError("حدث خطأ أثناء تسجيل الدخول عبر جوجل. الرجاء المحاولة مرة أخرى.");
+            }
             setIsSubmitting(false);
         }
     };
