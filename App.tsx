@@ -34,6 +34,22 @@ const DEFAULT_PROFILE: UserProfile = {
     avatar: '',
 };
 
+// Helper to convert Firebase Timestamps (and other formats) to ISO strings
+const normalizeDate = (date: any): any => {
+    if (!date) return date;
+    // Check if it's a Firestore Timestamp-like object
+    if (date && typeof date.toDate === 'function') {
+        return date.toDate().toISOString();
+    }
+    // Check if it's a JSON-serialized timestamp
+    if (date && date.seconds && typeof date.seconds === 'number') {
+        return new Date(date.seconds * 1000).toISOString();
+    }
+    // Assume it's already a string or another primitive
+    return date;
+};
+
+
 const App: React.FC = () => {
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -112,7 +128,25 @@ const App: React.FC = () => {
         if (!currentUser) return;
         const portfoliosColRef = db.collection('users').doc(currentUser.uid).collection('portfolios');
         const unsubscribe = portfoliosColRef.onSnapshot((snapshot) => {
-            const fetchedPortfolios = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Portfolio));
+            const fetchedPortfolios = snapshot.docs.map(d => {
+                const data = d.data();
+                // Normalize dates within trades
+                if (data.trades && Array.isArray(data.trades)) {
+                    data.trades = data.trades.map((trade: any) => ({
+                        ...trade,
+                        openDate: normalizeDate(trade.openDate),
+                        closeDate: normalizeDate(trade.closeDate),
+                    }));
+                }
+                 // Normalize dates within withdrawals
+                if (data.withdrawals && Array.isArray(data.withdrawals)) {
+                    data.withdrawals = data.withdrawals.map((withdrawal: any) => ({
+                        ...withdrawal,
+                        date: normalizeDate(withdrawal.date),
+                    }));
+                }
+                return { id: d.id, ...data } as Portfolio;
+            });
             setPortfolios(fetchedPortfolios);
         });
         return () => unsubscribe();
@@ -123,7 +157,14 @@ const App: React.FC = () => {
         if (!currentUser) return;
         const expensesColRef = db.collection('users').doc(currentUser.uid).collection('expenses');
         const unsubscribe = expensesColRef.onSnapshot((snapshot) => {
-            const fetchedExpenses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Expense));
+            const fetchedExpenses = snapshot.docs.map(d => {
+                const data = d.data();
+                return {
+                    id: d.id,
+                    ...data,
+                    date: normalizeDate(data.date),
+                } as Expense;
+            });
             setExpenses(fetchedExpenses);
         });
         return () => unsubscribe();
@@ -739,11 +780,11 @@ const App: React.FC = () => {
                                 <h3 className="text-xl font-semibold mb-4 text-gray-300">سجل المصروفات</h3>
                                 <div className="max-h-[400px] overflow-y-auto pr-2">
                                     {filteredExpenses.length > 0 ? filteredExpenses.map(expense => {
-                                        const formattedDate = new Date(expense.date).toLocaleDateString('ar-EG', {
+                                        const formattedDate = expense.date ? new Date(expense.date).toLocaleDateString('ar-EG', {
                                             day: 'numeric',
                                             month: 'long',
                                             year: 'numeric'
-                                        });
+                                        }) : 'غير محدد';
                                         return (
                                         <div key={expense.id} className="bg-gray-900 p-4 rounded-lg mb-3 flex justify-between items-center">
                                             <div>

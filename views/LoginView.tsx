@@ -17,13 +17,11 @@ const LoginView: React.FC = () => {
         setIsGoogleSubmitting(true);
         setError(null);
         try {
-            // Explicitly set persistence to 'session'. This can help in environments
-            // where localStorage is restricted (e.g., some iframes, private browsing).
-            await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+            // By removing explicit persistence setting, we let Firebase SDK handle it.
+            // It defaults to 'local' but has fallbacks for restricted environments.
             const provider = new firebase.auth.GoogleAuthProvider();
             await auth.signInWithPopup(provider);
-            // After successful popup login, onAuthStateChanged in App.tsx will handle the rest.
-            // We don't need to set isGoogleSubmitting to false, as the component will unmount on success.
+            // onAuthStateChanged in App.tsx will handle the success case.
         } catch (err: any) {
             console.error("Firebase Google Auth Error:", err);
             if (err.code === 'auth/popup-closed-by-user') {
@@ -31,7 +29,7 @@ const LoginView: React.FC = () => {
             } else if (err.code === 'auth/popup-blocked') {
                 setError("تم حظر النافذة المنبثقة بواسطة المتصفح. يرجى السماح بالنوافذ المنبثقة لهذا الموقع.");
             } else if (err.code === 'auth/operation-not-supported-in-this-environment') {
-                setError("تسجيل الدخول عبر جوجل غير مدعوم في هذه البيئة. قد يكون السبب استخدام متصفح في وضع التصفح الخفي أو تشغيل التطبيق في بيئة مقيدة. الرجاء محاولة استخدام متصفح عادي أو تسجيل الدخول بالبريد الإلكتروني.");
+                setError("تسجيل الدخول عبر جوجل غير ممكن في هذه البيئة. قد يكون المتصفح في وضع التصفح الخفي أو هناك قيود تمنع النوافذ المنبثقة. الرجاء محاولة استخدام متصفح آخر أو تسجيل الدخول باستخدام البريد الإلكتروني وكلمة المرور.");
             } else if (err.code === 'auth/network-request-failed') {
                 setError("فشل الاتصال بالشبكة. يرجى التحقق من اتصالك بالإنترنت.");
             } else {

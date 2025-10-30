@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Trade } from '../../types';
 import { TrashIcon } from '../icons/TrashIcon';
@@ -36,7 +37,7 @@ const TradeCard: React.FC<TradeCardProps> = ({ trade, currency, onOpenCloseModal
     };
 
     const quantity = trade.tradeValue / trade.purchasePrice;
-    const formattedOpenDate = new Date(trade.openDate).toLocaleDateString('ar-EG');
+    const formattedOpenDate = trade.openDate ? new Date(trade.openDate).toLocaleDateString('ar-EG') : 'غير محدد';
 
     return (
         <div className="bg-gray-900/70 p-4 rounded-lg flex items-center">

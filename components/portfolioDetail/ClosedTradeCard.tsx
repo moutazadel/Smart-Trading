@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Trade } from '../../types';
 import { ArrowTrendingUpIcon } from '../icons/ArrowTrendingUpIcon';
@@ -24,7 +25,7 @@ const ClosedTradeCard: React.FC<ClosedTradeCardProps> = ({ trade, currency }) =>
         } as any);
     }
 
-    const formattedOpenDate = new Date(trade.openDate).toLocaleDateString('ar-EG');
+    const formattedOpenDate = trade.openDate ? new Date(trade.openDate).toLocaleDateString('ar-EG') : 'غير محدد';
     const formattedCloseDate = trade.closeDate ? new Date(trade.closeDate).toLocaleDateString('ar-EG') : '';
 
     return (
