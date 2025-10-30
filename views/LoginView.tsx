@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { SpinnerIcon } from '../components/icons/SpinnerIcon';
+import { auth } from '../firebaseConfig';
+import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 
 // This is a simple function to decode the JWT token from Google
 // In a real app, you would use a library like 'jwt-decode'
@@ -18,16 +20,6 @@ function jwtDecode<T>(token: string): T {
     }
 }
 
-interface GoogleJwtPayload {
-    name: string;
-    email: string;
-    picture: string;
-}
-
-interface LoginViewProps {
-    onLogin: (user: { name: string; email: string; avatar?: string }) => void;
-}
-
 // Fix: Declare 'google' on the Window object to resolve TypeScript errors for the Google Sign-In SDK.
 declare global {
     interface Window {
@@ -35,40 +27,18 @@ declare global {
     }
 }
 
-const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
+const LoginView: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // This effect will run once the component is mounted
     useEffect(() => {
-        // Check if the google object is available
-        if (window.google) {
-            /*
-             * ==============================================================================
-             * ملاحظة هامة للمطور: خطأ "origin_mismatch"
-             * ==============================================================================
-             * إذا واجهت خطأ "Error 400: origin_mismatch" عند محاولة تسجيل الدخول،
-             * فهذا يعني أن عنوان URL الذي يعمل عليه تطبيقك حاليًا غير مسموح به
-             * في إعدادات Google Cloud Console.
-             *
-             * لحل هذه المشكلة، اتبع الخطوات التالية:
-             * 1. انسخ عنوان URL الكامل من شريط عنوان المتصفح (مثل: https://....aistudio.google.com).
-             * 2. اذهب إلى Google Cloud Console: https://console.cloud.google.com/
-             * 3. انتقل إلى "APIs & Services" > "Credentials".
-             * 4. ابحث عن "OAuth 2.0 Client ID" الذي تستخدمه (الذي يبدأ بـ '483439...').
-             * 5. انقر على اسم الـ Client ID لتعديله.
-             * 6. في قسم "Authorized JavaScript origins"، انقر على "ADD URI".
-             * 7. الصق عنوان URL الذي نسخته في الخطوة 1.
-             * 8. انقر على "Save".
-             *
-             * قد يستغرق تطبيق التغييرات بضع دقائق. بعد ذلك، يجب أن يعمل تسجيل الدخول بنجاح.
-             * ==============================================================================
-             */
+        if (window.google?.accounts?.id) {
             window.google.accounts.id.initialize({
                 client_id: '483439422637-h6n0tta8mv5hbhjhs5scu76d8e8h9mht.apps.googleusercontent.com',
                 callback: handleGoogleCredentialResponse
             });
 
-            // Render the Google Sign-In button
             window.google.accounts.id.renderButton(
                 document.getElementById('google-signin-button'),
                 { theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', locale: 'ar' }
@@ -76,17 +46,22 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         }
     }, []);
 
-    const handleGoogleCredentialResponse = (response: any) => {
+    const handleGoogleCredentialResponse = async (response: any) => {
         setIsSubmitting(true);
-        const userObject = jwtDecode<GoogleJwtPayload>(response.credential);
-        
-        const userProfile = {
-            name: userObject.name,
-            email: userObject.email,
-            avatar: userObject.picture
-        };
+        setError(null);
+        try {
+            // Create a Google credential with the token.
+            const credential = GoogleAuthProvider.credential(response.credential);
 
-        onLogin(userProfile);
+            // Sign in with Firebase.
+            await signInWithCredential(auth, credential);
+            
+            // The onAuthStateChanged listener in App.tsx will handle the rest.
+        } catch (error) {
+            console.error("Firebase Authentication Error:", error);
+            setError("حدث خطأ أثناء تسجيل الدخول. الرجاء المحاولة مرة أخرى.");
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -101,7 +76,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                         <span>جاري تسجيل الدخول...</span>
                     </div>
                 ) : (
-                    <div id="google-signin-button" className="flex justify-center transition-transform hover:scale-105"></div>
+                    <>
+                        <div id="google-signin-button" className="flex justify-center transition-transform hover:scale-105"></div>
+                        {error && <p className="text-red-400 mt-4 text-sm">{error}</p>}
+                    </>
                 )}
             </div>
              <footer className="absolute bottom-0 text-center py-4 text-gray-500 text-sm">

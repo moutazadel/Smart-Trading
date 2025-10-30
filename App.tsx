@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Portfolio, Expense, SubscriptionPlan, View, Trade, SummaryData, CurrencySummary, FinancialGoal, ExpenseCategory, UserProfile } from './types';
 import Header from './components/Header';
@@ -20,6 +21,10 @@ import ExpenseCategoryFilter from './components/ExpenseCategoryFilter';
 import ProfileView from './views/ProfileView';
 import LoginView from './views/LoginView';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
+import { auth, db } from './firebaseConfig';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
+
 
 const DEFAULT_PROFILE: UserProfile = {
     name: 'مستخدم جديد',
@@ -35,6 +40,7 @@ const App: React.FC = () => {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [savingsBalance, setSavingsBalance] = useState<number>(0);
     const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeView, setActiveView] = useState<View>(View.Portfolios);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
@@ -45,10 +51,10 @@ const App: React.FC = () => {
     const [filterKey, setFilterKey] = useState<string>('all');
     const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<ExpenseCategory | 'الكل'>('الكل');
     
-    // Notification State
+    // Notification State (remains in localStorage as it's a device-specific setting)
     const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
         const saved = localStorage.getItem('notificationsEnabled');
-        return saved ? JSON.parse(saved) : true; // Default to enabled
+        return saved ? JSON.parse(saved) : true;
     });
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(Notification.permission);
     
@@ -60,187 +66,114 @@ const App: React.FC = () => {
         onConfirm: () => {},
     });
 
-
-    // Effect to load the current user's profile from localStorage on initial app load
+    // Main effect to handle user authentication state
     useEffect(() => {
-        const savedProfile = localStorage.getItem('userProfile');
-        if (savedProfile) {
-            setProfile(JSON.parse(savedProfile));
-        }
-        setIsLoading(false);
-    }, []);
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            setIsLoading(true);
+            if (user) {
+                setCurrentUser(user);
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDoc = await getDoc(userDocRef);
 
-    // Effect to load, migrate, and manage user-specific data whenever the profile changes
-    useEffect(() => {
-        if (!profile || !profile.email) {
-            // No user logged in, clear all data
-            setPortfolios([]);
-            setExpenses([]);
-            setSavingsBalance(0);
-            return;
-        }
-
-        const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
-        
-        const userPortfoliosKey = getStorageKey('portfolios');
-        const userExpensesKey = getStorageKey('expenses');
-        const userSavingsKey = getStorageKey('savingsBalance');
-        
-        let portfoliosToLoad: Portfolio[] = [];
-        let expensesToLoad: Expense[] = [];
-        let savingsToLoad: number = 0;
-
-        // Check for existing data in the new user-specific format
-        const savedUserPortfoliosRaw = localStorage.getItem(userPortfoliosKey);
-        
-        if (savedUserPortfoliosRaw) {
-            // Data exists, load it
-            portfoliosToLoad = JSON.parse(savedUserPortfoliosRaw);
-            const savedExpensesRaw = localStorage.getItem(userExpensesKey);
-            if (savedExpensesRaw) expensesToLoad = JSON.parse(savedExpensesRaw);
-            const savedSavingsRaw = localStorage.getItem(userSavingsKey);
-            if (savedSavingsRaw) savingsToLoad = JSON.parse(savedSavingsRaw);
-        } else {
-            // No user-specific data found, check for old generic data to migrate
-            const oldPortfoliosRaw = localStorage.getItem('portfolios');
-            const oldExpensesRaw = localStorage.getItem('expenses');
-            const oldSavingsRaw = localStorage.getItem('savingsBalance');
-
-            if (oldPortfoliosRaw || oldExpensesRaw || oldSavingsRaw) {
-                console.log("Migrating old data to new user-specific format...");
-                
-                portfoliosToLoad = oldPortfoliosRaw ? JSON.parse(oldPortfoliosRaw) : [];
-                expensesToLoad = oldExpensesRaw ? JSON.parse(oldExpensesRaw) : [];
-                savingsToLoad = oldSavingsRaw ? JSON.parse(oldSavingsRaw) : 0;
-                
-                // Save migrated data under new keys
-                localStorage.setItem(userPortfoliosKey, JSON.stringify(portfoliosToLoad));
-                localStorage.setItem(userExpensesKey, JSON.stringify(expensesToLoad));
-                localStorage.setItem(userSavingsKey, JSON.stringify(savingsToLoad));
-                
-                // Clean up old generic keys
-                localStorage.removeItem('portfolios');
-                localStorage.removeItem('expenses');
-                localStorage.removeItem('savingsBalance');
-                
-                alert("تم تحديث نظام تخزين البيانات لربطها بحسابك. بياناتك الآن مرتبطة بهذا الحساب داخل هذا المتصفح.");
-            }
-        }
-
-        // --- Start of existing data structure migration logic (must be preserved) ---
-        const migratedPortfolios = portfoliosToLoad.map((p: any) => {
-            if (!p.financialGoals) {
-                p.financialGoals = [];
-                if (p.financialGoal) { 
-                    p.financialGoals.push({
-                        id: crypto.randomUUID(),
-                        name: 'الهدف الأول',
-                        amount: p.financialGoal,
-                        achieved: p.currentCapital >= p.financialGoal,
-                        notified: p.goalReachedNotified || false,
-                    });
+                if (userDoc.exists()) {
+                    setProfile(userDoc.data() as UserProfile);
+                    setSavingsBalance(userDoc.data().savingsBalance || 0);
+                } else {
+                    // Create a new profile for a new user
+                    const newProfile: UserProfile = {
+                        name: user.displayName || 'مستخدم جديد',
+                        email: user.email!,
+                        phone: user.phoneNumber || '',
+                        avatar: user.photoURL || '',
+                        country: '',
+                        city: ''
+                    };
+                    await setDoc(userDocRef, { ...newProfile, savingsBalance: 0 });
+                    setProfile(newProfile);
+                    setSavingsBalance(0);
                 }
-                delete p.financialGoal;
-                delete p.goalReachedNotified;
+            } else {
+                // User is signed out
+                setCurrentUser(null);
+                setProfile(null);
+                setPortfolios([]);
+                setExpenses([]);
+                setSavingsBalance(0);
             }
-            p.financialGoals = p.financialGoals.map((g: any) => ({
-                id: g.id || crypto.randomUUID(),
-                name: g.name || 'هدف',
-                amount: g.amount || 0,
-                achieved: g.achieved !== undefined ? g.achieved : (p.currentCapital >= g.amount),
-                notified: g.notified !== undefined ? g.notified : false,
-            }));
-            if (!p.withdrawals) p.withdrawals = [];
-            return p;
+            setIsLoading(false);
         });
         
-        const migratedExpenses = expensesToLoad.map(e => ({
-            ...e,
-            category: e.category || 'أخرى'
-        }));
-        // --- End of existing data structure migration logic ---
+        return () => unsubscribe();
+    }, []);
 
-        // Set the final, migrated state
-        setPortfolios(migratedPortfolios as Portfolio[]);
-        setExpenses(migratedExpenses as Expense[]);
-        setSavingsBalance(savingsToLoad);
-
-    }, [profile]);
+    // Effect to listen for real-time updates to portfolios
+    useEffect(() => {
+        if (!currentUser) return;
+        const portfoliosColRef = collection(db, 'users', currentUser.uid, 'portfolios');
+        const unsubscribe = onSnapshot(portfoliosColRef, (snapshot) => {
+            const fetchedPortfolios = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Portfolio));
+            setPortfolios(fetchedPortfolios);
+        });
+        return () => unsubscribe();
+    }, [currentUser]);
     
-    // Persist portfolios to user-specific localStorage
+    // Effect to listen for real-time updates to expenses
     useEffect(() => {
-        if (profile && profile.email) {
-            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
-            localStorage.setItem(getStorageKey('portfolios'), JSON.stringify(portfolios));
-        }
-    }, [portfolios, profile]);
-    
-    // Persist savings to user-specific localStorage
-    useEffect(() => {
-        if (profile && profile.email) {
-            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
-            localStorage.setItem(getStorageKey('savingsBalance'), JSON.stringify(savingsBalance));
-        }
-    }, [savingsBalance, profile]);
+        if (!currentUser) return;
+        const expensesColRef = collection(db, 'users', currentUser.uid, 'expenses');
+        const unsubscribe = onSnapshot(expensesColRef, (snapshot) => {
+            const fetchedExpenses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Expense));
+            setExpenses(fetchedExpenses);
+        });
+        return () => unsubscribe();
+    }, [currentUser]);
 
-    // Persist user profile to generic localStorage
-    useEffect(() => {
-        if (profile) {
-            localStorage.setItem('userProfile', JSON.stringify(profile));
-        }
-    }, [profile]);
-    
-    // Persist expenses to user-specific localStorage
-    useEffect(() => {
-        if (profile && profile.email) {
-            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
-            localStorage.setItem(getStorageKey('expenses'), JSON.stringify(expenses));
-        }
-    }, [expenses, profile]);
 
+    // Goal achievement notification logic
     useEffect(() => {
-        let wasChanged = false;
-        const updatedPortfolios = portfolios.map(p => {
-            let goalsChanged = false;
-            const updatedGoals = p.financialGoals.map(goal => {
-                const newGoal = { ...goal };
-                if (p.currentCapital >= goal.amount) {
-                    if (!newGoal.achieved) {
+        if (!currentUser) return;
+        
+        const checkGoals = async () => {
+            let wasChanged = false;
+            const updatedPortfolios = [...portfolios]; // Create a mutable copy
+            
+            for (let i = 0; i < updatedPortfolios.length; i++) {
+                let p = updatedPortfolios[i];
+                let goalsChanged = false;
+                const updatedGoals = p.financialGoals.map(goal => {
+                    const newGoal = { ...goal };
+                    if (p.currentCapital >= goal.amount && !newGoal.achieved) {
                         newGoal.achieved = true;
                         goalsChanged = true;
-                        if (!newGoal.notified) {
-                             if (notificationsEnabled && notificationPermission === 'granted') {
-                                 new Notification('✨ تم الوصول للهدف!', {
-                                    body: `تهانينا! لقد وصلت محفظة "${p.name}" إلى هدفها "${goal.name}".`,
-                                    icon: '/vite.svg'
-                                });
-                            }
+                        if (!newGoal.notified && notificationsEnabled && notificationPermission === 'granted') {
+                            new Notification('✨ تم الوصول للهدف!', {
+                                body: `تهانينا! لقد وصلت محفظة "${p.name}" إلى هدفها "${goal.name}".`,
+                                icon: '/vite.svg'
+                            });
                             newGoal.notified = true;
                         }
-                    }
-                } else {
-                    if (newGoal.achieved) {
+                    } else if (p.currentCapital < goal.amount && newGoal.achieved) {
                         newGoal.achieved = false;
                         newGoal.notified = false;
                         goalsChanged = true;
                     }
+                    return newGoal;
+                });
+    
+                if (goalsChanged) {
+                    wasChanged = true;
+                    updatedPortfolios[i] = { ...p, financialGoals: updatedGoals };
+                    // Persist this individual portfolio change to Firestore
+                    const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', p.id);
+                    await updateDoc(portfolioDocRef, { financialGoals: updatedGoals });
                 }
-                return newGoal;
-            });
-    
-            if (goalsChanged) {
-                wasChanged = true;
-                return { ...p, financialGoals: updatedGoals };
             }
-            return p;
-        });
-    
-        if (wasChanged) {
-            setPortfolios(updatedPortfolios);
-        }
-    }, [portfolios, notificationsEnabled, notificationPermission]);
+        };
 
+        checkGoals();
+    }, [portfolios, currentUser, notificationsEnabled, notificationPermission]);
 
+    // Persist notification setting to localStorage (device-specific)
     useEffect(() => {
         localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
     }, [notificationsEnabled]);
@@ -254,9 +187,9 @@ const App: React.FC = () => {
         setConfirmation({ isOpen: false, title: '', message: '', onConfirm: () => {} });
     };
 
-    const addPortfolio = (name: string, initialCapital: number, financialGoal: number, currency: string) => {
-        const newPortfolio: Portfolio = {
-            id: crypto.randomUUID(),
+    const addPortfolio = async (name: string, initialCapital: number, financialGoal: number, currency: string) => {
+        if (!currentUser) return;
+        const newPortfolio: Omit<Portfolio, 'id'> = {
             name,
             initialCapital,
             currentCapital: initialCapital,
@@ -271,257 +204,224 @@ const App: React.FC = () => {
             currency,
             withdrawals: [],
         };
-        setPortfolios([...portfolios, newPortfolio]);
+        const portfoliosColRef = collection(db, 'users', currentUser.uid, 'portfolios');
+        await addDoc(portfoliosColRef, newPortfolio);
         setAddPortfolioModalOpen(false);
     };
     
     const deletePortfolio = (idToDelete: string, name: string) => {
+        if (!currentUser) return;
         setConfirmation({
             isOpen: true,
             title: `حذف محفظة "${name}"`,
-            message: 'هل أنت متأكد من رغبتك في حذف هذه المحفظة؟ سيتم حذف جميع الصفقات المرتبطة بها بشكل نهائي. المصروفات المسحوبة من هذه المحفظة ستبقى.',
-            onConfirm: () => {
-                setPortfolios(portfolios.filter(p => p.id !== idToDelete));
-                // Old expenses are kept, but unlinked visually
-                setExpenses(expenses.map(e => e.portfolioId === idToDelete ? { ...e, portfolioId: undefined, portfolioName: `${e.portfolioName} (محذوفة)` } : e));
+            message: 'هل أنت متأكد من رغبتك في حذف هذه المحفظة؟ سيتم حذف جميع الصفقات المرتبطة بها بشكل نهائي.',
+            onConfirm: async () => {
+                const portfolioDocRef = doc(db, 'users', currentUser!.uid, 'portfolios', idToDelete);
+                await deleteDoc(portfolioDocRef);
                 closeConfirmation();
             },
         });
     };
     
-    const updatePortfolioDetails = (portfolioId: string, newDetails: { financialGoals?: FinancialGoal[], name?: string }) => {
-        setPortfolios(portfolios.map(p => {
-            if (p.id === portfolioId) {
-                let updatedPortfolio = { ...p };
-                
-                if (newDetails.name !== undefined) {
-                    updatedPortfolio.name = newDetails.name;
-                    
-                    // Update old expense records with the new portfolio name
-                    setExpenses(prevExpenses => prevExpenses.map(expense => 
-                        expense.portfolioId === portfolioId ? { ...expense, portfolioName: newDetails.name! } : expense
-                    ));
-                }
+    const updatePortfolioDetails = async (portfolioId: string, newDetails: { financialGoals?: FinancialGoal[], name?: string }) => {
+        if (!currentUser) return;
+        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
 
-                if (newDetails.financialGoals !== undefined) {
-                    updatedPortfolio.financialGoals = newDetails.financialGoals;
-                }
+        let updateData: any = {};
+        if (newDetails.name !== undefined) updateData.name = newDetails.name;
+        if (newDetails.financialGoals !== undefined) updateData.financialGoals = newDetails.financialGoals;
 
-                updatedPortfolio.financialGoals = updatedPortfolio.financialGoals.map(goal => ({
-                    ...goal,
-                    achieved: updatedPortfolio.currentCapital >= goal.amount,
-                    notified: (updatedPortfolio.currentCapital < goal.amount) ? false : goal.notified
-                }));
-                
-                return updatedPortfolio;
-            }
-            return p;
-        }));
+        await updateDoc(portfolioDocRef, updateData);
     };
 
-    const addCapitalToPortfolio = (portfolioId: string, amountToAdd: number) => {
-        setPortfolios(portfolios.map(p => {
-            if (p.id === portfolioId) {
-                const newInitialCapital = p.initialCapital + amountToAdd;
-                return {
-                    ...p,
-                    initialCapital: newInitialCapital,
-                    currentCapital: p.currentCapital + amountToAdd,
-                };
-            }
-            return p;
-        }));
+    const addCapitalToPortfolio = async (portfolioId: string, amountToAdd: number) => {
+        if (!currentUser) return;
+        const portfolio = portfolios.find(p => p.id === portfolioId);
+        if (!portfolio) return;
+        
+        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+        await updateDoc(portfolioDocRef, {
+            initialCapital: portfolio.initialCapital + amountToAdd,
+            currentCapital: portfolio.currentCapital + amountToAdd
+        });
     };
 
-    const addTrade = (portfolioId: string, tradeData: Omit<Trade, 'id' | 'portfolioId' | 'status' | 'openDate'>) => {
-        setPortfolios(portfolios.map(p => {
-            if (p.id === portfolioId) {
-                if (p.currentCapital < tradeData.tradeValue) {
-                    alert("رصيد المحفظة غير كافٍ لفتح هذه الصفقة!");
-                    return p;
-                }
-                const newTrade: Trade = {
-                    ...tradeData,
-                    id: crypto.randomUUID(),
-                    portfolioId: p.id,
-                    status: 'open',
-                    openDate: new Date().toLocaleDateString('en-GB'), 
-                };
-                return { 
-                    ...p, 
-                    trades: [newTrade, ...p.trades],
-                    currentCapital: p.currentCapital - tradeData.tradeValue
-                };
-            }
-            return p;
-        }));
+    const addTrade = async (portfolioId: string, tradeData: Omit<Trade, 'id' | 'portfolioId' | 'status' | 'openDate'>) => {
+        if (!currentUser) return;
+        const portfolio = portfolios.find(p => p.id === portfolioId);
+        if (!portfolio || portfolio.currentCapital < tradeData.tradeValue) {
+            alert("رصيد المحفظة غير كافٍ لفتح هذه الصفقة!");
+            return;
+        }
+
+        const newTrade: Trade = {
+            ...tradeData,
+            id: crypto.randomUUID(),
+            portfolioId: portfolio.id,
+            status: 'open',
+            openDate: new Date().toLocaleDateString('en-GB'), 
+        };
+
+        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+        await updateDoc(portfolioDocRef, {
+            trades: [newTrade, ...portfolio.trades],
+            currentCapital: portfolio.currentCapital - tradeData.tradeValue
+        });
     };
     
-    const closeTrade = (portfolioId: string, tradeId: string, closePrice: number) => {
-        setPortfolios(portfolios.map(p => {
-            if (p.id === portfolioId) {
-                const tradeToClose = p.trades.find(t => t.id === tradeId);
-                if (!tradeToClose || tradeToClose.status !== 'open') return p;
+    const closeTrade = async (portfolioId: string, tradeId: string, closePrice: number) => {
+        if (!currentUser) return;
+        const portfolio = portfolios.find(p => p.id === portfolioId);
+        if (!portfolio) return;
 
-                const capitalToReturn = tradeToClose.tradeValue * (closePrice / tradeToClose.purchasePrice);
-                const profitLoss = capitalToReturn - tradeToClose.tradeValue;
-                const profitLossPercent = (profitLoss / tradeToClose.tradeValue) * 100;
+        const tradeToClose = portfolio.trades.find(t => t.id === tradeId);
+        if (!tradeToClose || tradeToClose.status !== 'open') return;
 
-                if (notificationsEnabled && notificationPermission === 'granted') {
-                    const SIGNIFICANT_THRESHOLD = 50;
-                    if (profitLossPercent >= SIGNIFICANT_THRESHOLD) {
-                        new Notification('🚀 ربح كبير!', {
-                            body: `صفقة "${tradeToClose.stockName}" في محفظة "${p.name}" حققت ربحًا كبيرًا بنسبة ${profitLossPercent.toFixed(1)}%!`,
-                            icon: '/vite.svg'
-                        });
-                    } else if (profitLossPercent <= -SIGNIFICANT_THRESHOLD) {
-                        new Notification('📉 خسارة كبيرة', {
-                            body: `صفقة "${tradeToClose.stockName}" في محفظة "${p.name}" تعرضت لخسارة كبيرة بنسبة ${Math.abs(profitLossPercent).toFixed(1)}%!`,
-                            icon: '/vite.svg'
-                        });
-                    }
-                }
+        const capitalToReturn = tradeToClose.tradeValue * (closePrice / tradeToClose.purchasePrice);
+        const profitLoss = capitalToReturn - tradeToClose.tradeValue;
 
-                const updatedTrade: Trade = {
-                    ...tradeToClose,
-                    status: 'closed',
-                    closePrice: closePrice,
-                    closeDate: new Date().toLocaleDateString('en-GB'),
-                    outcome: profitLoss >= 0 ? 'profit' : 'loss',
-                };
-
-                return {
-                    ...p,
-                    currentCapital: p.currentCapital + capitalToReturn,
-                    trades: p.trades.map(t => t.id === tradeId ? updatedTrade : t),
-                };
-            }
-            return p;
-        }));
+        const updatedTrade: Trade = {
+            ...tradeToClose,
+            status: 'closed',
+            closePrice: closePrice,
+            closeDate: new Date().toLocaleDateString('en-GB'),
+            outcome: profitLoss >= 0 ? 'profit' : 'loss',
+        };
+        
+        const updatedTrades = portfolio.trades.map(t => t.id === tradeId ? updatedTrade : t);
+        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+        
+        await updateDoc(portfolioDocRef, {
+            trades: updatedTrades,
+            currentCapital: portfolio.currentCapital + capitalToReturn
+        });
     };
     
     const deleteTrade = (portfolioId: string, tradeId: string) => {
         const portfolio = portfolios.find(p => p.id === portfolioId);
         const trade = portfolio?.trades.find(t => t.id === tradeId);
-        if (!trade) return;
+        if (!trade || !currentUser) return;
 
         setConfirmation({
             isOpen: true,
             title: `حذف صفقة "${trade.stockName}"`,
             message: 'هل أنت متأكد من حذف هذه الصفقة؟ هذا الإجراء سيؤثر على رصيد المحفظة ولا يمكن التراجع عنه.',
-            onConfirm: () => {
-                setPortfolios(portfolios.map(p => {
-                    if (p.id === portfolioId) {
-                        const tradeToDelete = p.trades.find(t => t.id === tradeId);
-                        if (!tradeToDelete) return p;
-            
-                        let capitalAdjustment = 0;
-                        if (tradeToDelete.status === 'open') {
-                            capitalAdjustment = tradeToDelete.tradeValue;
-                        } else if (tradeToDelete.status === 'closed' && tradeToDelete.closePrice) { 
-                            const profitLoss = (tradeToDelete.closePrice * (tradeToDelete.tradeValue / tradeToDelete.purchasePrice)) - tradeToDelete.tradeValue;
-                            capitalAdjustment = -profitLoss; 
-                        }
-                        
-                        return {
-                            ...p,
-                            currentCapital: p.currentCapital + capitalAdjustment,
-                            trades: p.trades.filter(t => t.id !== tradeId),
-                        };
-                    }
-                    return p;
-                }));
+            onConfirm: async () => {
+                const portfolioToUpdate = portfolios.find(p => p.id === portfolioId)!;
+                const tradeToDelete = portfolioToUpdate.trades.find(t => t.id === tradeId)!;
+                
+                let capitalAdjustment = 0;
+                if (tradeToDelete.status === 'open') {
+                    capitalAdjustment = tradeToDelete.tradeValue;
+                } else if (tradeToDelete.status === 'closed' && tradeToDelete.closePrice) { 
+                    const profitLoss = (tradeToDelete.closePrice * (tradeToDelete.tradeValue / tradeToDelete.purchasePrice)) - tradeToDelete.tradeValue;
+                    capitalAdjustment = -profitLoss; 
+                }
+                
+                const updatedTrades = portfolioToUpdate.trades.filter(t => t.id !== tradeId);
+                const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+                await updateDoc(portfolioDocRef, {
+                    trades: updatedTrades,
+                    currentCapital: portfolioToUpdate.currentCapital + capitalAdjustment
+                });
                 closeConfirmation();
             },
         });
     };
 
-    const updateTrade = (portfolioId: string, tradeId: string, newDetails: Partial<Omit<Trade, 'id' | 'portfolioId'>>) => {
-        setPortfolios(portfolios.map(p => {
-            if (p.id === portfolioId) {
-                let capitalAdjustment = 0;
-                const updatedTrades = p.trades.map(t => {
-                    if (t.id === tradeId && t.status === 'open') {
-                        if (newDetails.tradeValue !== undefined && newDetails.tradeValue !== t.tradeValue) {
-                            capitalAdjustment = t.tradeValue - newDetails.tradeValue; // refund old value, subtract new
-                        }
-                        return { ...t, ...newDetails };
-                    }
-                    return t;
-                });
+    const updateTrade = async (portfolioId: string, tradeId: string, newDetails: Partial<Omit<Trade, 'id' | 'portfolioId'>>) => {
+        if (!currentUser) return;
+        const portfolio = portfolios.find(p => p.id === portfolioId);
+        if (!portfolio) return;
 
-                if (p.currentCapital + capitalAdjustment < 0) {
-                    alert("لا يمكن تعديل قيمة الصفقة. رصيد المحفظة غير كافٍ.");
-                    return p;
-                }
+        let capitalAdjustment = 0;
+        const originalTrade = portfolio.trades.find(t => t.id === tradeId);
+        if (!originalTrade || originalTrade.status !== 'open') return;
 
-                return {
-                    ...p,
-                    trades: updatedTrades,
-                    currentCapital: p.currentCapital + capitalAdjustment
-                };
-            }
-            return p;
-        }));
+        if (newDetails.tradeValue !== undefined && newDetails.tradeValue !== originalTrade.tradeValue) {
+            capitalAdjustment = originalTrade.tradeValue - newDetails.tradeValue;
+        }
+
+        if (portfolio.currentCapital + capitalAdjustment < 0) {
+            alert("لا يمكن تعديل قيمة الصفقة. رصيد المحفظة غير كافٍ.");
+            return;
+        }
+        
+        const updatedTrades = portfolio.trades.map(t => t.id === tradeId ? { ...t, ...newDetails } : t);
+        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+        
+        await updateDoc(portfolioDocRef, {
+            trades: updatedTrades,
+            currentCapital: portfolio.currentCapital + capitalAdjustment
+        });
     };
 
-    const addExpense = (description: string, amount: number, category: ExpenseCategory) => {
-        if (savingsBalance >= amount) {
-            const newExpense: Expense = {
-                id: crypto.randomUUID(),
-                description,
-                amount,
-                date: new Date().toLocaleDateString('ar-EG'),
-                category,
-            };
-            setExpenses([newExpense, ...expenses]);
-            setSavingsBalance(prev => prev - amount);
-            setAddExpenseModalOpen(false);
-        } else {
+    const addExpense = async (description: string, amount: number, category: ExpenseCategory) => {
+        if (!currentUser || savingsBalance < amount) {
             alert("رصيد المدخرات غير كافٍ!");
+            return;
         }
+        const newExpense: Omit<Expense, 'id'> = {
+            description,
+            amount,
+            date: new Date().toLocaleDateString('ar-EG'),
+            category,
+        };
+        
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const expensesColRef = collection(db, 'users', currentUser.uid, 'expenses');
+
+        const batch = writeBatch(db);
+        batch.set(addDoc(expensesColRef), newExpense);
+        batch.update(userDocRef, { savingsBalance: savingsBalance - amount });
+        await batch.commit();
+
+        setSavingsBalance(prev => prev - amount); // Optimistic update
+        setAddExpenseModalOpen(false);
     };
     
     const deleteExpense = (expenseId: string) => {
         const expenseToDelete = expenses.find(e => e.id === expenseId);
-        if (!expenseToDelete) return;
-
-        const message = expenseToDelete.portfolioId
-            ? 'هل أنت متأكد من حذف هذا المصروف؟ سيتم إعادة المبلغ إلى المحفظة الأصلية.'
-            : 'هل أنت متأكد من حذف هذا المصروف؟ سيتم إعادة المبلغ إلى رصيد المدخرات.';
+        if (!expenseToDelete || !currentUser) return;
 
         setConfirmation({
             isOpen: true,
             title: `حذف مصروف "${expenseToDelete.description}"`,
-            message: message,
-            onConfirm: () => {
-                if (expenseToDelete.portfolioId) {
-                    setPortfolios(portfolios.map(p => {
-                        if (p.id === expenseToDelete.portfolioId) {
-                            return { ...p, currentCapital: p.currentCapital + expenseToDelete.amount };
-                        }
-                        return p;
-                    }));
-                } else {
-                    setSavingsBalance(prev => prev + expenseToDelete.amount);
-                }
-                setExpenses(expenses.filter(e => e.id !== expenseId));
+            message: 'هل أنت متأكد من حذف هذا المصروف؟ سيتم إعادة المبلغ إلى رصيد المدخرات.',
+            onConfirm: async () => {
+                const userDocRef = doc(db, 'users', currentUser.uid);
+                const expenseDocRef = doc(db, 'users', currentUser.uid, 'expenses', expenseId);
+
+                const batch = writeBatch(db);
+                batch.delete(expenseDocRef);
+                batch.update(userDocRef, { savingsBalance: savingsBalance + expenseToDelete.amount });
+                await batch.commit();
+                
+                setSavingsBalance(prev => prev + expenseToDelete.amount); // Optimistic update
                 closeConfirmation();
             },
         });
     };
 
-    const withdrawToSavings = (portfolioId: string, amount: number) => {
+    const withdrawToSavings = async (portfolioId: string, amount: number) => {
+        if(!currentUser) return;
         const portfolio = portfolios.find(p => p.id === portfolioId);
         if (portfolio && portfolio.currentCapital >= amount) {
-            setPortfolios(portfolios.map(p => {
-                if (p.id === portfolioId) {
-                    const newWithdrawals = [...(p.withdrawals || []), { amount, date: new Date().toLocaleDateString('en-GB') }];
-                    return { ...p, currentCapital: p.currentCapital - amount, withdrawals: newWithdrawals };
-                }
-                return p;
-            }));
-            setSavingsBalance(prev => prev + amount);
+            const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+            const userDocRef = doc(db, 'users', currentUser.uid);
+
+            const batch = writeBatch(db);
+
+            const newWithdrawals = [...(portfolio.withdrawals || []), { amount, date: new Date().toLocaleDateString('en-GB') }];
+            batch.update(portfolioDocRef, {
+                currentCapital: portfolio.currentCapital - amount,
+                withdrawals: newWithdrawals
+            });
+            batch.update(userDocRef, { savingsBalance: savingsBalance + amount });
+
+            await batch.commit();
+            
+            setSavingsBalance(prev => prev + amount); // Optimistic update
             setWithdrawModalOpen(false);
         } else {
             alert("رصيد المحفظة غير كافٍ!");
@@ -538,19 +438,12 @@ const App: React.FC = () => {
         setActiveView(View.Portfolios);
     }
     
-    const handleSaveProfile = (updatedProfile: UserProfile) => {
+    const handleSaveProfile = async (updatedProfile: UserProfile) => {
+        if (!currentUser) return;
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        await updateDoc(userDocRef, { ...updatedProfile });
         setProfile(updatedProfile);
         setActiveView(View.Portfolios);
-    };
-
-    const handleLogin = (user: { name: string; email: string; avatar?: string }) => {
-        const newProfile: UserProfile = {
-            ...DEFAULT_PROFILE,
-            name: user.name,
-            email: user.email,
-            avatar: user.avatar || '',
-        };
-        setProfile(newProfile);
     };
     
     const handleLogout = () => {
@@ -558,53 +451,67 @@ const App: React.FC = () => {
             isOpen: true,
             title: 'تسجيل الخروج',
             message: 'هل أنت متأكد من رغبتك في تسجيل الخروج؟',
-            onConfirm: () => {
-                localStorage.removeItem('userProfile');
-                setProfile(null);
+            onConfirm: async () => {
+                await auth.signOut();
                 closeConfirmation();
             },
         });
     };
 
-
     const handleResetAllData = () => {
+        if (!currentUser) return;
         setConfirmation({
             isOpen: true,
             title: 'حذف جميع البيانات',
             message: 'هل أنت متأكد من رغبتك في إعادة تعيين التطبيق؟ سيتم حذف جميع بيانات هذا الحساب (المحافظ، الصفقات، المصروفات) بشكل نهائي ولا يمكن التراجع عن هذا الإجراء.',
-            onConfirm: () => {
-                if (profile && profile.email) {
-                    const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
-                    localStorage.removeItem(getStorageKey('portfolios'));
-                    localStorage.removeItem(getStorageKey('expenses'));
-                    localStorage.removeItem(getStorageKey('savingsBalance'));
-                }
-                // Also clear non-user-specific data for a full reset
-                localStorage.removeItem('userProfile');
-                localStorage.removeItem('notificationsEnabled');
-                window.location.reload();
+            onConfirm: async () => {
+                const batch = writeBatch(db);
+                const userDocRef = doc(db, 'users', currentUser.uid);
+                
+                // Delete all portfolios and expenses subcollections
+                const portfoliosQuery = await getDocs(collection(db, 'users', currentUser.uid, 'portfolios'));
+                portfoliosQuery.forEach(doc => batch.delete(doc.ref));
+                
+                const expensesQuery = await getDocs(collection(db, 'users', currentUser.uid, 'expenses'));
+                expensesQuery.forEach(doc => batch.delete(doc.ref));
+
+                // Reset user document data
+                batch.update(userDocRef, { savingsBalance: 0 });
+
+                await batch.commit();
+                
+                // Optimistically update UI
+                setPortfolios([]);
+                setExpenses([]);
+                setSavingsBalance(0);
+
+                closeConfirmation();
             },
         });
     };
 
-    const handleExportData = () => {
+    const handleExportData = async () => {
+        // This function will now export data directly from Firestore
+         if (!currentUser) {
+            alert("يجب أن تكون مسجلاً للدخول لتصدير البيانات.");
+            return;
+        }
         try {
-            if (!profile || !profile.email) {
-                alert("يجب أن تكون مسجلاً للدخول لتصدير البيانات.");
-                return;
-            }
-            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
+            const userDocRef = doc(db, 'users', currentUser.uid);
+            const userDoc = await getDoc(userDocRef);
+            const profileData = userDoc.data();
 
-            const portfoliosData = localStorage.getItem(getStorageKey('portfolios')) || '[]';
-            const expensesData = localStorage.getItem(getStorageKey('expenses')) || '[]';
-            const savingsData = localStorage.getItem(getStorageKey('savingsBalance')) || '0';
-            const profileData = localStorage.getItem('userProfile') || '{}';
-    
+            const portfoliosQuery = await getDocs(collection(db, 'users', currentUser.uid, 'portfolios'));
+            const portfoliosData = portfoliosQuery.docs.map(doc => doc.data());
+            
+            const expensesQuery = await getDocs(collection(db, 'users', currentUser.uid, 'expenses'));
+            const expensesData = expensesQuery.docs.map(doc => doc.data());
+            
             const dataToExport = {
-                profile: JSON.parse(profileData),
-                portfolios: JSON.parse(portfoliosData),
-                expenses: JSON.parse(expensesData),
-                savingsBalance: JSON.parse(savingsData),
+                profile: profileData,
+                portfolios: portfoliosData,
+                expenses: expensesData,
+                // savingsBalance is part of the profile now
             };
     
             const jsonString = JSON.stringify(dataToExport, null, 2);
@@ -626,32 +533,51 @@ const App: React.FC = () => {
     };
     
     const handleImportData = (fileContent: string) => {
+        if (!currentUser) {
+            alert("يجب أن تكون مسجلاً للدخول لاستيراد البيانات.");
+            return;
+        }
         try {
             const data = JSON.parse(fileContent);
     
             if (!data || !data.portfolios || !data.expenses || !data.profile || !data.profile.email) {
                 throw new Error("ملف غير صالح أو تالف أو لا يحتوي على ملف شخصي ببريد إلكتروني.");
             }
+             if (data.profile.email !== currentUser.email) {
+                throw new Error("ملف النسخ الاحتياطي هذا يخص مستخدمًا آخر. لا يمكنك استيراده إلى هذا الحساب.");
+            }
             
             setConfirmation({
                 isOpen: true,
                 title: 'تأكيد استيراد البيانات',
                 message: 'هل أنت متأكد من رغبتك في استيراد البيانات؟ سيتم الكتابة فوق جميع بياناتك الحالية المرتبطة بهذا الحساب.',
-                onConfirm: () => {
-                    const importedProfile = data.profile as UserProfile;
-                    
-                    // Set the current profile to the imported one and persist it
-                    setProfile(importedProfile);
-                    localStorage.setItem('userProfile', JSON.stringify(importedProfile));
-                    
-                    // Save the rest of the data under the new profile's keys
-                    const getStorageKey = (key: string) => `smart-wallet-${importedProfile.email}-${key}`;
-                    localStorage.setItem(getStorageKey('portfolios'), JSON.stringify(data.portfolios || []));
-                    localStorage.setItem(getStorageKey('expenses'), JSON.stringify(data.expenses || []));
-                    localStorage.setItem(getStorageKey('savingsBalance'), JSON.stringify(data.savingsBalance || 0));
+                onConfirm: async () => {
+                    const batch = writeBatch(db);
+                    const userDocRef = doc(db, 'users', currentUser.uid);
 
-                    alert("تم استيراد البيانات بنجاح! سيتم إعادة تحميل التطبيق.");
-                    window.location.reload();
+                    // Delete existing data first
+                    const existingPortfolios = await getDocs(collection(db, 'users', currentUser.uid, 'portfolios'));
+                    existingPortfolios.forEach(doc => batch.delete(doc.ref));
+                    const existingExpenses = await getDocs(collection(db, 'users', currentUser.uid, 'expenses'));
+                    existingExpenses.forEach(doc => batch.delete(doc.ref));
+
+                    // Set profile data
+                    batch.set(userDocRef, data.profile);
+                    
+                    // Add new data
+                    data.portfolios.forEach((p: any) => {
+                        const newPortfolioRef = doc(collection(db, 'users', currentUser.uid, 'portfolios'));
+                        batch.set(newPortfolioRef, p);
+                    });
+                    data.expenses.forEach((e: any) => {
+                        const newExpenseRef = doc(collection(db, 'users', currentUser.uid, 'expenses'));
+                        batch.set(newExpenseRef, e);
+                    });
+
+                    await batch.commit();
+
+                    alert("تم استيراد البيانات بنجاح! سيتم تحديث البيانات تلقائيًا.");
+                    closeConfirmation();
                 },
             });
         } catch (error) {
@@ -928,8 +854,8 @@ const App: React.FC = () => {
         );
     }
     
-    if (!profile) {
-        return <LoginView onLogin={handleLogin} />;
+    if (!currentUser) {
+        return <LoginView />;
     }
 
     return (
