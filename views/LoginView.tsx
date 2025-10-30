@@ -147,7 +147,7 @@ const LoginView: React.FC = () => {
                 
                 {error && <p className="text-red-400 mt-4 text-sm">{error}</p>}
             </div>
-             <footer className="absolute bottom-0 text-center py-4 text-gray-500 text-sm">
+             <footer className="absolute bottom-0 text-center py-4 text-gray-400 text-sm">
                 هذا التطبيق من تطوير <a href="https://www.facebook.com/moutaz.adel" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">معتز عادل</a>
             </footer>
         </div>

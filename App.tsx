@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Portfolio, Expense, SubscriptionPlan, View, Trade, SummaryData, CurrencySummary, FinancialGoal, ExpenseCategory, UserProfile } from './types';
 import Header from './components/Header';
@@ -24,7 +26,6 @@ import LoginView from './views/LoginView';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
 import { auth, db } from './firebaseConfig';
 import firebase from 'firebase/compat/app';
-import { doc, getDoc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -89,12 +90,12 @@ const App: React.FC = () => {
             setIsLoading(true);
             if (user) {
                 setCurrentUser(user);
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDoc = await getDoc(userDocRef);
+                const userDocRef = db.collection('users').doc(user.uid);
+                const userDoc = await userDocRef.get();
 
-                if (userDoc.exists()) {
+                if (userDoc.exists) {
                     setProfile(userDoc.data() as UserProfile);
-                    setSavingsBalance(userDoc.data().savingsBalance || 0);
+                    setSavingsBalance(userDoc.data()?.savingsBalance || 0);
                 } else {
                     // Create a new profile for a new user
                     const newProfile: UserProfile = {
@@ -105,7 +106,7 @@ const App: React.FC = () => {
                         country: '',
                         city: ''
                     };
-                    await setDoc(userDocRef, { ...newProfile, savingsBalance: 0 });
+                    await userDocRef.set({ ...newProfile, savingsBalance: 0 });
                     setProfile(newProfile);
                     setSavingsBalance(0);
                 }
@@ -126,8 +127,8 @@ const App: React.FC = () => {
     // Effect to listen for real-time updates to portfolios
     useEffect(() => {
         if (!currentUser) return;
-        const portfoliosColRef = collection(db, 'users', currentUser.uid, 'portfolios');
-        const unsubscribe = onSnapshot(portfoliosColRef, (snapshot) => {
+        const portfoliosColRef = db.collection('users').doc(currentUser.uid).collection('portfolios');
+        const unsubscribe = portfoliosColRef.onSnapshot((snapshot) => {
             const fetchedPortfolios = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Portfolio));
             setPortfolios(fetchedPortfolios);
         });
@@ -137,8 +138,8 @@ const App: React.FC = () => {
     // Effect to listen for real-time updates to expenses
     useEffect(() => {
         if (!currentUser) return;
-        const expensesColRef = collection(db, 'users', currentUser.uid, 'expenses');
-        const unsubscribe = onSnapshot(expensesColRef, (snapshot) => {
+        const expensesColRef = db.collection('users').doc(currentUser.uid).collection('expenses');
+        const unsubscribe = expensesColRef.onSnapshot((snapshot) => {
             const fetchedExpenses = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Expense));
             setExpenses(fetchedExpenses);
         });
@@ -181,8 +182,8 @@ const App: React.FC = () => {
                     wasChanged = true;
                     updatedPortfolios[i] = { ...p, financialGoals: updatedGoals };
                     // Persist this individual portfolio change to Firestore
-                    const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', p.id);
-                    await updateDoc(portfolioDocRef, { financialGoals: updatedGoals });
+                    const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(p.id);
+                    await portfolioDocRef.update({ financialGoals: updatedGoals });
                 }
             }
         };
@@ -221,8 +222,8 @@ const App: React.FC = () => {
             currency,
             withdrawals: [],
         };
-        const portfoliosColRef = collection(db, 'users', currentUser.uid, 'portfolios');
-        await addDoc(portfoliosColRef, newPortfolio);
+        const portfoliosColRef = db.collection('users').doc(currentUser.uid).collection('portfolios');
+        await portfoliosColRef.add(newPortfolio);
         setAddPortfolioModalOpen(false);
     };
     
@@ -233,8 +234,8 @@ const App: React.FC = () => {
             title: `حذف محفظة "${name}"`,
             message: 'هل أنت متأكد من رغبتك في حذف هذه المحفظة؟ سيتم حذف جميع الصفقات المرتبطة بها بشكل نهائي.',
             onConfirm: async () => {
-                const portfolioDocRef = doc(db, 'users', currentUser!.uid, 'portfolios', idToDelete);
-                await deleteDoc(portfolioDocRef);
+                const portfolioDocRef = db.collection('users').doc(currentUser!.uid).collection('portfolios').doc(idToDelete);
+                await portfolioDocRef.delete();
                 closeConfirmation();
             },
         });
@@ -242,13 +243,13 @@ const App: React.FC = () => {
     
     const updatePortfolioDetails = async (portfolioId: string, newDetails: { financialGoals?: FinancialGoal[], name?: string }) => {
         if (!currentUser) return;
-        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+        const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
 
         let updateData: any = {};
         if (newDetails.name !== undefined) updateData.name = newDetails.name;
         if (newDetails.financialGoals !== undefined) updateData.financialGoals = newDetails.financialGoals;
 
-        await updateDoc(portfolioDocRef, updateData);
+        await portfolioDocRef.update(updateData);
     };
 
     const addCapitalToPortfolio = async (portfolioId: string, amountToAdd: number) => {
@@ -256,8 +257,8 @@ const App: React.FC = () => {
         const portfolio = portfolios.find(p => p.id === portfolioId);
         if (!portfolio) return;
         
-        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
-        await updateDoc(portfolioDocRef, {
+        const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
+        await portfolioDocRef.update({
             initialCapital: portfolio.initialCapital + amountToAdd,
             currentCapital: portfolio.currentCapital + amountToAdd
         });
@@ -279,8 +280,8 @@ const App: React.FC = () => {
             openDate: new Date().toLocaleDateString('en-GB'), 
         };
 
-        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
-        await updateDoc(portfolioDocRef, {
+        const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
+        await portfolioDocRef.update({
             trades: [newTrade, ...portfolio.trades],
             currentCapital: portfolio.currentCapital - tradeData.tradeValue
         });
@@ -306,9 +307,9 @@ const App: React.FC = () => {
         };
         
         const updatedTrades = portfolio.trades.map(t => t.id === tradeId ? updatedTrade : t);
-        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+        const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
         
-        await updateDoc(portfolioDocRef, {
+        await portfolioDocRef.update({
             trades: updatedTrades,
             currentCapital: portfolio.currentCapital + capitalToReturn
         });
@@ -336,8 +337,8 @@ const App: React.FC = () => {
                 }
                 
                 const updatedTrades = portfolioToUpdate.trades.filter(t => t.id !== tradeId);
-                const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
-                await updateDoc(portfolioDocRef, {
+                const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
+                await portfolioDocRef.update({
                     trades: updatedTrades,
                     currentCapital: portfolioToUpdate.currentCapital + capitalAdjustment
                 });
@@ -365,9 +366,9 @@ const App: React.FC = () => {
         }
         
         const updatedTrades = portfolio.trades.map(t => t.id === tradeId ? { ...t, ...newDetails } : t);
-        const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
+        const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
         
-        await updateDoc(portfolioDocRef, {
+        await portfolioDocRef.update({
             trades: updatedTrades,
             currentCapital: portfolio.currentCapital + capitalAdjustment
         });
@@ -385,14 +386,12 @@ const App: React.FC = () => {
             category,
         };
         
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        const expensesColRef = collection(db, 'users', currentUser.uid, 'expenses');
+        const userDocRef = db.collection('users').doc(currentUser.uid);
+        const expensesColRef = db.collection('users').doc(currentUser.uid).collection('expenses');
 
-        const batch = writeBatch(db);
-        // FIX: The `addDoc` function performs an immediate write and returns a Promise, it cannot be used inside a batch `set` operation.
-        // It was also called with the wrong number of arguments.
-        // To add a new document within a batch, we create a new document reference with an auto-generated ID using `doc(collectionRef)`.
-        batch.set(doc(expensesColRef), newExpense);
+        const batch = db.batch();
+        const newExpenseRef = expensesColRef.doc();
+        batch.set(newExpenseRef, newExpense);
         batch.update(userDocRef, { savingsBalance: savingsBalance - amount });
         await batch.commit();
 
@@ -409,10 +408,10 @@ const App: React.FC = () => {
             title: `حذف مصروف "${expenseToDelete.description}"`,
             message: 'هل أنت متأكد من حذف هذا المصروف؟ سيتم إعادة المبلغ إلى رصيد المدخرات.',
             onConfirm: async () => {
-                const userDocRef = doc(db, 'users', currentUser.uid);
-                const expenseDocRef = doc(db, 'users', currentUser.uid, 'expenses', expenseId);
+                const userDocRef = db.collection('users').doc(currentUser.uid);
+                const expenseDocRef = db.collection('users').doc(currentUser.uid).collection('expenses').doc(expenseId);
 
-                const batch = writeBatch(db);
+                const batch = db.batch();
                 batch.delete(expenseDocRef);
                 batch.update(userDocRef, { savingsBalance: savingsBalance + expenseToDelete.amount });
                 await batch.commit();
@@ -427,10 +426,10 @@ const App: React.FC = () => {
         if(!currentUser) return;
         const portfolio = portfolios.find(p => p.id === portfolioId);
         if (portfolio && portfolio.currentCapital >= amount) {
-            const portfolioDocRef = doc(db, 'users', currentUser.uid, 'portfolios', portfolioId);
-            const userDocRef = doc(db, 'users', currentUser.uid);
+            const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
+            const userDocRef = db.collection('users').doc(currentUser.uid);
 
-            const batch = writeBatch(db);
+            const batch = db.batch();
 
             const newWithdrawals = [...(portfolio.withdrawals || []), { amount, date: new Date().toLocaleDateString('en-GB') }];
             batch.update(portfolioDocRef, {
@@ -463,8 +462,8 @@ const App: React.FC = () => {
             throw new Error("User not authenticated.");
         }
         try {
-            const userDocRef = doc(db, 'users', currentUser.uid);
-            await updateDoc(userDocRef, { ...updatedProfile });
+            const userDocRef = db.collection('users').doc(currentUser.uid);
+            await userDocRef.update({ ...updatedProfile });
             setProfile(updatedProfile);
             setActiveView(View.Portfolios);
         } catch (error) {
@@ -492,14 +491,14 @@ const App: React.FC = () => {
             title: 'حذف جميع البيانات',
             message: 'هل أنت متأكد من رغبتك في إعادة تعيين التطبيق؟ سيتم حذف جميع بيانات هذا الحساب (المحافظ، الصفقات، المصروفات) بشكل نهائي ولا يمكن التراجع عن هذا الإجراء.',
             onConfirm: async () => {
-                const batch = writeBatch(db);
-                const userDocRef = doc(db, 'users', currentUser.uid);
+                const batch = db.batch();
+                const userDocRef = db.collection('users').doc(currentUser.uid);
                 
                 // Delete all portfolios and expenses subcollections
-                const portfoliosQuery = await getDocs(collection(db, 'users', currentUser.uid, 'portfolios'));
+                const portfoliosQuery = await db.collection('users').doc(currentUser.uid).collection('portfolios').get();
                 portfoliosQuery.forEach(doc => batch.delete(doc.ref));
                 
-                const expensesQuery = await getDocs(collection(db, 'users', currentUser.uid, 'expenses'));
+                const expensesQuery = await db.collection('users').doc(currentUser.uid).collection('expenses').get();
                 expensesQuery.forEach(doc => batch.delete(doc.ref));
 
                 // Reset user document data
@@ -524,14 +523,14 @@ const App: React.FC = () => {
             return;
         }
         try {
-            const userDocRef = doc(db, 'users', currentUser.uid);
-            const userDoc = await getDoc(userDocRef);
+            const userDocRef = db.collection('users').doc(currentUser.uid);
+            const userDoc = await userDocRef.get();
             const profileData = userDoc.data();
 
-            const portfoliosQuery = await getDocs(collection(db, 'users', currentUser.uid, 'portfolios'));
+            const portfoliosQuery = await db.collection('users').doc(currentUser.uid).collection('portfolios').get();
             const portfoliosData = portfoliosQuery.docs.map(doc => doc.data());
             
-            const expensesQuery = await getDocs(collection(db, 'users', currentUser.uid, 'expenses'));
+            const expensesQuery = await db.collection('users').doc(currentUser.uid).collection('expenses').get();
             const expensesData = expensesQuery.docs.map(doc => doc.data());
             
             const dataToExport = {
@@ -579,13 +578,16 @@ const App: React.FC = () => {
                 title: 'تأكيد استيراد البيانات',
                 message: 'هل أنت متأكد من رغبتك في استيراد البيانات؟ سيتم الكتابة فوق جميع بياناتك الحالية المرتبطة بهذا الحساب.',
                 onConfirm: async () => {
-                    const batch = writeBatch(db);
-                    const userDocRef = doc(db, 'users', currentUser.uid);
+                    const batch = db.batch();
+                    const userDocRef = db.collection('users').doc(currentUser.uid);
+                    const portfoliosColRef = db.collection('users').doc(currentUser.uid).collection('portfolios');
+                    const expensesColRef = db.collection('users').doc(currentUser.uid).collection('expenses');
+
 
                     // Delete existing data first
-                    const existingPortfolios = await getDocs(collection(db, 'users', currentUser.uid, 'portfolios'));
+                    const existingPortfolios = await portfoliosColRef.get();
                     existingPortfolios.forEach(doc => batch.delete(doc.ref));
-                    const existingExpenses = await getDocs(collection(db, 'users', currentUser.uid, 'expenses'));
+                    const existingExpenses = await expensesColRef.get();
                     existingExpenses.forEach(doc => batch.delete(doc.ref));
 
                     // Set profile data
@@ -593,11 +595,11 @@ const App: React.FC = () => {
                     
                     // Add new data
                     data.portfolios.forEach((p: any) => {
-                        const newPortfolioRef = doc(collection(db, 'users', currentUser.uid, 'portfolios'));
+                        const newPortfolioRef = portfoliosColRef.doc();
                         batch.set(newPortfolioRef, p);
                     });
                     data.expenses.forEach((e: any) => {
-                        const newExpenseRef = doc(collection(db, 'users', currentUser.uid, 'expenses'));
+                        const newExpenseRef = expensesColRef.doc();
                         batch.set(newExpenseRef, e);
                     });
 
@@ -913,7 +915,7 @@ const App: React.FC = () => {
                 </div>
             </div>
             
-            <footer className="text-center py-4 text-gray-500 text-sm border-t border-gray-800">
+            <footer className="text-center py-4 text-gray-400 text-sm border-t border-gray-800">
                 هذا التطبيق من تطوير <a href="https://www.facebook.com/moutaz.adel" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">معتز عادل</a>
             </footer>
 
