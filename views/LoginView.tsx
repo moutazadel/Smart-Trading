@@ -1,79 +1,52 @@
-
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { SpinnerIcon } from '../components/icons/SpinnerIcon';
+import { GoogleIcon } from '../components/icons/GoogleIcon';
 import { auth } from '../firebaseConfig';
-// Fix: Import the firebase compat library to use v8 auth methods and providers, instead of v9 modular functions.
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
-
-// Fix: Declare 'google' on the Window object to resolve TypeScript errors for the Google Sign-In SDK.
-declare global {
-    interface Window {
-        google: any;
-    }
-}
 
 const LoginView: React.FC = () => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
+    const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // This effect will run once the component is mounted
-    useEffect(() => {
-        if (window.google?.accounts?.id) {
-            window.google.accounts.id.initialize({
-                client_id: '483439422637-h6n0tta8mv5hbhjhs5scu76d8e8h9mht.apps.googleusercontent.com',
-                callback: handleGoogleCredentialResponse
-            });
-
-            window.google.accounts.id.renderButton(
-                document.getElementById('google-signin-button'),
-                { theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', locale: 'ar' }
-            );
-        }
-    }, []);
-
-    const handleGoogleCredentialResponse = async (response: any) => {
-        setIsSubmitting(true);
+    const handleGoogleSignIn = async () => {
+        setIsGoogleSubmitting(true);
         setError(null);
         try {
-            // Create a Google credential with the token.
-            // Fix: Use the GoogleAuthProvider from the v8 compat firebase object.
-            const credential = firebase.auth.GoogleAuthProvider.credential(response.credential);
-            // Sign in with Firebase.
-            // Fix: Use the signInWithCredential method from the v8 compat auth object.
-            await auth.signInWithCredential(credential);
-            // The onAuthStateChanged listener in App.tsx will handle the rest.
-        } catch (error: any) {
-            console.error("Firebase Google Auth Error:", error);
-            if (error.code === 'auth/invalid-credential') {
-                setError("فشلت المصادقة باستخدام جوجل. قد يكون هذا الحساب غير مصرح له. جرب حسابًا آخر.");
+            const provider = new firebase.auth.GoogleAuthProvider();
+            // The 'signInWithPopup' method can be blocked in some environments (like sandboxed iframes).
+            // 'signInWithRedirect' is an alternative, but can also be blocked.
+            await auth.signInWithRedirect(provider);
+            // The result of the redirect will be handled by listeners in the main App component.
+        } catch (err: any) {
+            console.error("Firebase Google Auth Error:", err);
+            // Handle specific errors for a better user experience.
+            if (err.code === 'auth/operation-not-supported-in-this-environment') {
+                setError("تسجيل الدخول عبر جوجل غير مدعوم في هذه البيئة. الرجاء استخدام البريد الإلكتروني وكلمة المرور.");
+            } else if (err.code === 'auth/network-request-failed') {
+                setError("فشل الاتصال بالشبكة. يرجى التحقق من اتصالك بالإنترنت.");
             } else {
-                setError("حدث خطأ أثناء تسجيل الدخول عبر جوجل. الرجاء المحاولة مرة أخرى.");
+                setError("حدث خطأ عند محاولة تسجيل الدخول عبر جوجل.");
             }
-            setIsSubmitting(false);
+            setIsGoogleSubmitting(false);
         }
     };
     
     const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsSubmitting(true);
+        setIsEmailSubmitting(true);
         setError(null);
 
         try {
             if (isLoginView) {
-                // Sign in logic
-                // Fix: Use the signInWithEmailAndPassword method from the v8 compat auth object.
                 await auth.signInWithEmailAndPassword(email, password);
             } else {
-                // Sign up logic
-                // Fix: Use the createUserWithEmailAndPassword method from the v8 compat auth object.
                 await auth.createUserWithEmailAndPassword(email, password);
             }
-            // onAuthStateChanged in App.tsx will handle successful login/signup
         } catch (err: any) {
              switch (err.code) {
                 case 'auth/user-not-found':
@@ -95,9 +68,11 @@ const LoginView: React.FC = () => {
                     setError('حدث خطأ غير متوقع. الرجاء المحاولة مرة أخرى.');
                     break;
             }
-            setIsSubmitting(false);
+            setIsEmailSubmitting(false);
         }
     };
+
+    const isSubmitting = isEmailSubmitting || isGoogleSubmitting;
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
@@ -135,7 +110,7 @@ const LoginView: React.FC = () => {
                         disabled={isSubmitting}
                         className="w-full flex justify-center items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-cyan-700 disabled:cursor-wait"
                     >
-                         {isSubmitting ? <SpinnerIcon /> : null}
+                         {isEmailSubmitting ? <SpinnerIcon /> : null}
                          {isLoginView ? 'تسجيل الدخول' : 'إنشاء حساب'}
                     </button>
                 </form>
@@ -151,14 +126,24 @@ const LoginView: React.FC = () => {
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-800 px-2 text-gray-400 text-sm">أو</span>
                 </div>
 
-                {isSubmitting && !email ? (
-                     <div className="flex items-center justify-center gap-3 text-white py-3">
-                        <SpinnerIcon className="w-6 h-6" />
-                        <span>جاري تسجيل الدخول...</span>
-                    </div>
-                ) : (
-                    <div id="google-signin-button" className="flex justify-center transition-transform hover:scale-105"></div>
-                )}
+                <div className="space-y-3">
+                    <p className="text-xs text-yellow-300 bg-yellow-900/50 p-2 rounded-md border border-yellow-700">
+                        ملاحظة: الدخول لأول مرة عبر جوجل سيؤدي لإنشاء حساب جديد تلقائياً
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleGoogleSignIn}
+                        disabled={isSubmitting}
+                        className="w-full flex justify-center items-center gap-3 bg-white hover:bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-300 disabled:cursor-wait"
+                    >
+                        {isGoogleSubmitting ? (
+                             <SpinnerIcon className="w-6 h-6 text-gray-800" />
+                        ) : (
+                            <GoogleIcon />
+                        )}
+                        <span>{isGoogleSubmitting ? 'جاري التحميل...' : 'المتابعة باستخدام جوجل'}</span>
+                    </button>
+                </div>
                 
                 {error && <p className="text-red-400 mt-4 text-sm">{error}</p>}
             </div>

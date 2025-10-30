@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Portfolio, Expense, SubscriptionPlan, View, Trade, SummaryData, CurrencySummary, FinancialGoal, ExpenseCategory, UserProfile } from './types';
 import Header from './components/Header';
@@ -68,6 +69,21 @@ const App: React.FC = () => {
 
     // Main effect to handle user authentication state
     useEffect(() => {
+        // This is used to handle the result from a sign-in redirect.
+        // It's important to handle this to catch any errors from the redirect flow.
+        (async () => {
+            try {
+                await auth.getRedirectResult();
+            } catch (error: any) {
+                // This error can occur on load in environments where redirect operations are not supported
+                // (e.g., some sandboxed iframes). We can safely ignore it here, as the LoginView
+                // will provide a specific message to the user if they attempt the action.
+                if (error.code !== 'auth/operation-not-supported-in-this-environment') {
+                    console.error("Firebase Redirect Auth Error:", error);
+                }
+            }
+        })();
+
         // Fix: Use the onAuthStateChanged method from the v8 compat auth object, not the standalone v9 function.
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
             setIsLoading(true);
@@ -373,7 +389,10 @@ const App: React.FC = () => {
         const expensesColRef = collection(db, 'users', currentUser.uid, 'expenses');
 
         const batch = writeBatch(db);
-        batch.set(addDoc(expensesColRef), newExpense);
+        // FIX: The `addDoc` function performs an immediate write and returns a Promise, it cannot be used inside a batch `set` operation.
+        // It was also called with the wrong number of arguments.
+        // To add a new document within a batch, we create a new document reference with an auto-generated ID using `doc(collectionRef)`.
+        batch.set(doc(expensesColRef), newExpense);
         batch.update(userDocRef, { savingsBalance: savingsBalance - amount });
         await batch.commit();
 
@@ -651,7 +670,7 @@ const App: React.FC = () => {
                 result.sort((a, b) => a.initialCapital - b.initialCapital);
                 break;
             case 'currentCapital_desc':
-                result.sort((a, b) => b.currentCapital - a.currentCapital);
+                result.sort((a, b) => b.currentCapital - b.currentCapital);
                 break;
             case 'currentCapital_asc':
                 result.sort((a, b) => a.currentCapital - b.currentCapital);
