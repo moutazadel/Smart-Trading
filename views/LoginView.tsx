@@ -168,10 +168,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                         ) : 'تسجيل الدخول'}
                     </button>
                 </form>
-
-                <p className="text-center text-sm text-gray-400 mt-6">
-                    ليس لديك حساب؟ <a href="#" className="font-semibold text-cyan-400 hover:underline">سجل الآن</a>
-                </p>
             </div>
              <footer className="absolute bottom-0 text-center py-4 text-gray-500 text-sm">
                 هذا التطبيق من تطوير <a href="https://www.facebook.com/moutaz.adel" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">معتز عادل</a>
