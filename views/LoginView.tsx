@@ -47,16 +47,16 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         if (window.google) {
             window.google.accounts.id.initialize({
                 // =================================================================
-                // === ضع الـ CLIENT ID الخاص بك هنا الذي حصلت عليه من Google Cloud ===
+                // === تم وضع الـ CLIENT ID الخاص بك هنا ===
                 // =================================================================
-                client_id: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+                client_id: '483439422637-mqgigupl48f9b27jk9luah0cl5b6ifo5.apps.googleusercontent.com',
                 callback: handleGoogleCredentialResponse
             });
 
             // Render the Google Sign-In button
             window.google.accounts.id.renderButton(
                 document.getElementById('google-signin-button'),
-                { theme: 'outline', size: 'large', type: 'standard', text: 'signin_with', locale: 'ar' }
+                { theme: 'outline', size: 'large', type: 'standard', text: 'continue_with', locale: 'ar' }
             );
         }
     }, []);
