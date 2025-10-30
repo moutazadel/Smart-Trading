@@ -17,6 +17,9 @@ const LoginView: React.FC = () => {
         setIsGoogleSubmitting(true);
         setError(null);
         try {
+            // Explicitly set persistence to 'session'. This can help in environments
+            // where localStorage is restricted (e.g., some iframes, private browsing).
+            await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
             const provider = new firebase.auth.GoogleAuthProvider();
             await auth.signInWithPopup(provider);
             // After successful popup login, onAuthStateChanged in App.tsx will handle the rest.
@@ -28,7 +31,7 @@ const LoginView: React.FC = () => {
             } else if (err.code === 'auth/popup-blocked') {
                 setError("تم حظر النافذة المنبثقة بواسطة المتصفح. يرجى السماح بالنوافذ المنبثقة لهذا الموقع.");
             } else if (err.code === 'auth/operation-not-supported-in-this-environment') {
-                setError("تسجيل الدخول عبر جوجل غير مدعوم في هذه البيئة. الرجاء استخدام البريد الإلكتروني وكلمة المرور.");
+                setError("تسجيل الدخول عبر جوجل غير مدعوم في هذه البيئة. قد يكون السبب استخدام متصفح في وضع التصفح الخفي أو تشغيل التطبيق في بيئة مقيدة. الرجاء محاولة استخدام متصفح عادي أو تسجيل الدخول بالبريد الإلكتروني.");
             } else if (err.code === 'auth/network-request-failed') {
                 setError("فشل الاتصال بالشبكة. يرجى التحقق من اتصالك بالإنترنت.");
             } else {
