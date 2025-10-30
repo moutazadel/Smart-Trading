@@ -61,73 +61,142 @@ const App: React.FC = () => {
     });
 
 
+    // Effect to load the current user's profile from localStorage on initial app load
     useEffect(() => {
         const savedProfile = localStorage.getItem('userProfile');
         if (savedProfile) {
             setProfile(JSON.parse(savedProfile));
         }
         setIsLoading(false);
-
-        const savedPortfoliosRaw = localStorage.getItem('portfolios');
-        if (savedPortfoliosRaw) {
-            let parsedPortfolios: any[] = JSON.parse(savedPortfoliosRaw);
-            const migratedPortfolios = parsedPortfolios.map((p: any) => {
-                if (!p.financialGoals) {
-                    p.financialGoals = [];
-                    if (p.financialGoal) { 
-                        p.financialGoals.push({
-                            id: crypto.randomUUID(),
-                            name: 'الهدف الأول',
-                            amount: p.financialGoal,
-                            achieved: p.currentCapital >= p.financialGoal,
-                            notified: p.goalReachedNotified || false,
-                        });
-                    }
-                    delete p.financialGoal;
-                    delete p.goalReachedNotified;
-                }
-                p.financialGoals = p.financialGoals.map((g: any) => ({
-                    id: g.id || crypto.randomUUID(),
-                    name: g.name || 'هدف',
-                    amount: g.amount || 0,
-                    achieved: g.achieved !== undefined ? g.achieved : (p.currentCapital >= g.amount),
-                    notified: g.notified !== undefined ? g.notified : false,
-                }));
-                if (!p.withdrawals) p.withdrawals = [];
-                return p;
-            });
-            setPortfolios(migratedPortfolios as Portfolio[]);
-        }
-
-        const savedExpensesRaw = localStorage.getItem('expenses');
-        if (savedExpensesRaw) {
-            let parsedExpenses: any[] = JSON.parse(savedExpensesRaw);
-            const migratedExpenses = parsedExpenses.map(e => ({
-                ...e,
-                category: e.category || 'أخرى'
-            }));
-            setExpenses(migratedExpenses as Expense[]);
-        }
-
-        const savedSavings = localStorage.getItem('savingsBalance');
-        if (savedSavings) {
-            setSavingsBalance(JSON.parse(savedSavings));
-        }
     }, []);
-    
-    useEffect(() => {
-        localStorage.setItem('portfolios', JSON.stringify(portfolios));
-    }, [portfolios]);
-    
-    useEffect(() => {
-        localStorage.setItem('savingsBalance', JSON.stringify(savingsBalance));
-    }, [savingsBalance]);
 
+    // Effect to load, migrate, and manage user-specific data whenever the profile changes
+    useEffect(() => {
+        if (!profile || !profile.email) {
+            // No user logged in, clear all data
+            setPortfolios([]);
+            setExpenses([]);
+            setSavingsBalance(0);
+            return;
+        }
+
+        const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
+        
+        const userPortfoliosKey = getStorageKey('portfolios');
+        const userExpensesKey = getStorageKey('expenses');
+        const userSavingsKey = getStorageKey('savingsBalance');
+        
+        let portfoliosToLoad: Portfolio[] = [];
+        let expensesToLoad: Expense[] = [];
+        let savingsToLoad: number = 0;
+
+        // Check for existing data in the new user-specific format
+        const savedUserPortfoliosRaw = localStorage.getItem(userPortfoliosKey);
+        
+        if (savedUserPortfoliosRaw) {
+            // Data exists, load it
+            portfoliosToLoad = JSON.parse(savedUserPortfoliosRaw);
+            const savedExpensesRaw = localStorage.getItem(userExpensesKey);
+            if (savedExpensesRaw) expensesToLoad = JSON.parse(savedExpensesRaw);
+            const savedSavingsRaw = localStorage.getItem(userSavingsKey);
+            if (savedSavingsRaw) savingsToLoad = JSON.parse(savedSavingsRaw);
+        } else {
+            // No user-specific data found, check for old generic data to migrate
+            const oldPortfoliosRaw = localStorage.getItem('portfolios');
+            const oldExpensesRaw = localStorage.getItem('expenses');
+            const oldSavingsRaw = localStorage.getItem('savingsBalance');
+
+            if (oldPortfoliosRaw || oldExpensesRaw || oldSavingsRaw) {
+                console.log("Migrating old data to new user-specific format...");
+                
+                portfoliosToLoad = oldPortfoliosRaw ? JSON.parse(oldPortfoliosRaw) : [];
+                expensesToLoad = oldExpensesRaw ? JSON.parse(oldExpensesRaw) : [];
+                savingsToLoad = oldSavingsRaw ? JSON.parse(oldSavingsRaw) : 0;
+                
+                // Save migrated data under new keys
+                localStorage.setItem(userPortfoliosKey, JSON.stringify(portfoliosToLoad));
+                localStorage.setItem(userExpensesKey, JSON.stringify(expensesToLoad));
+                localStorage.setItem(userSavingsKey, JSON.stringify(savingsToLoad));
+                
+                // Clean up old generic keys
+                localStorage.removeItem('portfolios');
+                localStorage.removeItem('expenses');
+                localStorage.removeItem('savingsBalance');
+                
+                alert("تم تحديث نظام تخزين البيانات لربطها بحسابك. بياناتك الآن مرتبطة بهذا الحساب داخل هذا المتصفح.");
+            }
+        }
+
+        // --- Start of existing data structure migration logic (must be preserved) ---
+        const migratedPortfolios = portfoliosToLoad.map((p: any) => {
+            if (!p.financialGoals) {
+                p.financialGoals = [];
+                if (p.financialGoal) { 
+                    p.financialGoals.push({
+                        id: crypto.randomUUID(),
+                        name: 'الهدف الأول',
+                        amount: p.financialGoal,
+                        achieved: p.currentCapital >= p.financialGoal,
+                        notified: p.goalReachedNotified || false,
+                    });
+                }
+                delete p.financialGoal;
+                delete p.goalReachedNotified;
+            }
+            p.financialGoals = p.financialGoals.map((g: any) => ({
+                id: g.id || crypto.randomUUID(),
+                name: g.name || 'هدف',
+                amount: g.amount || 0,
+                achieved: g.achieved !== undefined ? g.achieved : (p.currentCapital >= g.amount),
+                notified: g.notified !== undefined ? g.notified : false,
+            }));
+            if (!p.withdrawals) p.withdrawals = [];
+            return p;
+        });
+        
+        const migratedExpenses = expensesToLoad.map(e => ({
+            ...e,
+            category: e.category || 'أخرى'
+        }));
+        // --- End of existing data structure migration logic ---
+
+        // Set the final, migrated state
+        setPortfolios(migratedPortfolios as Portfolio[]);
+        setExpenses(migratedExpenses as Expense[]);
+        setSavingsBalance(savingsToLoad);
+
+    }, [profile]);
+    
+    // Persist portfolios to user-specific localStorage
+    useEffect(() => {
+        if (profile && profile.email) {
+            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
+            localStorage.setItem(getStorageKey('portfolios'), JSON.stringify(portfolios));
+        }
+    }, [portfolios, profile]);
+    
+    // Persist savings to user-specific localStorage
+    useEffect(() => {
+        if (profile && profile.email) {
+            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
+            localStorage.setItem(getStorageKey('savingsBalance'), JSON.stringify(savingsBalance));
+        }
+    }, [savingsBalance, profile]);
+
+    // Persist user profile to generic localStorage
     useEffect(() => {
         if (profile) {
             localStorage.setItem('userProfile', JSON.stringify(profile));
         }
     }, [profile]);
+    
+    // Persist expenses to user-specific localStorage
+    useEffect(() => {
+        if (profile && profile.email) {
+            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
+            localStorage.setItem(getStorageKey('expenses'), JSON.stringify(expenses));
+        }
+    }, [expenses, profile]);
 
     useEffect(() => {
         let wasChanged = false;
@@ -171,9 +240,6 @@ const App: React.FC = () => {
         }
     }, [portfolios, notificationsEnabled, notificationPermission]);
 
-    useEffect(() => {
-        localStorage.setItem('expenses', JSON.stringify(expenses));
-    }, [expenses]);
 
     useEffect(() => {
         localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
@@ -505,9 +571,17 @@ const App: React.FC = () => {
         setConfirmation({
             isOpen: true,
             title: 'حذف جميع البيانات',
-            message: 'هل أنت متأكد من رغبتك في إعادة تعيين التطبيق؟ سيتم حذف جميع المحافظ والصفقات والمصروفات والمدخرات بشكل نهائي ولا يمكن التراجع عن هذا الإجراء.',
+            message: 'هل أنت متأكد من رغبتك في إعادة تعيين التطبيق؟ سيتم حذف جميع بيانات هذا الحساب (المحافظ، الصفقات، المصروفات) بشكل نهائي ولا يمكن التراجع عن هذا الإجراء.',
             onConfirm: () => {
-                localStorage.clear();
+                if (profile && profile.email) {
+                    const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
+                    localStorage.removeItem(getStorageKey('portfolios'));
+                    localStorage.removeItem(getStorageKey('expenses'));
+                    localStorage.removeItem(getStorageKey('savingsBalance'));
+                }
+                // Also clear non-user-specific data for a full reset
+                localStorage.removeItem('userProfile');
+                localStorage.removeItem('notificationsEnabled');
                 window.location.reload();
             },
         });
@@ -515,9 +589,15 @@ const App: React.FC = () => {
 
     const handleExportData = () => {
         try {
-            const portfoliosData = localStorage.getItem('portfolios') || '[]';
-            const expensesData = localStorage.getItem('expenses') || '[]';
-            const savingsData = localStorage.getItem('savingsBalance') || '0';
+            if (!profile || !profile.email) {
+                alert("يجب أن تكون مسجلاً للدخول لتصدير البيانات.");
+                return;
+            }
+            const getStorageKey = (key: string) => `smart-wallet-${profile.email}-${key}`;
+
+            const portfoliosData = localStorage.getItem(getStorageKey('portfolios')) || '[]';
+            const expensesData = localStorage.getItem(getStorageKey('expenses')) || '[]';
+            const savingsData = localStorage.getItem(getStorageKey('savingsBalance')) || '0';
             const profileData = localStorage.getItem('userProfile') || '{}';
     
             const dataToExport = {
@@ -549,22 +629,29 @@ const App: React.FC = () => {
         try {
             const data = JSON.parse(fileContent);
     
-            if (!data || !data.portfolios || !data.expenses) {
-                throw new Error("ملف غير صالح أو تالف.");
+            if (!data || !data.portfolios || !data.expenses || !data.profile || !data.profile.email) {
+                throw new Error("ملف غير صالح أو تالف أو لا يحتوي على ملف شخصي ببريد إلكتروني.");
             }
             
             setConfirmation({
                 isOpen: true,
                 title: 'تأكيد استيراد البيانات',
-                message: 'هل أنت متأكد من رغبتك في استيراد البيانات؟ سيتم الكتابة فوق جميع بياناتك الحالية.',
+                message: 'هل أنت متأكد من رغبتك في استيراد البيانات؟ سيتم الكتابة فوق جميع بياناتك الحالية المرتبطة بهذا الحساب.',
                 onConfirm: () => {
-                    setPortfolios(data.portfolios || []);
-                    setExpenses(data.expenses || []);
-                    setSavingsBalance(data.savingsBalance || 0);
-                    setProfile(data.profile || DEFAULT_PROFILE);
-                    alert("تم استيراد البيانات بنجاح!");
-                    setActiveView(View.Portfolios);
-                    closeConfirmation();
+                    const importedProfile = data.profile as UserProfile;
+                    
+                    // Set the current profile to the imported one and persist it
+                    setProfile(importedProfile);
+                    localStorage.setItem('userProfile', JSON.stringify(importedProfile));
+                    
+                    // Save the rest of the data under the new profile's keys
+                    const getStorageKey = (key: string) => `smart-wallet-${importedProfile.email}-${key}`;
+                    localStorage.setItem(getStorageKey('portfolios'), JSON.stringify(data.portfolios || []));
+                    localStorage.setItem(getStorageKey('expenses'), JSON.stringify(data.expenses || []));
+                    localStorage.setItem(getStorageKey('savingsBalance'), JSON.stringify(data.savingsBalance || 0));
+
+                    alert("تم استيراد البيانات بنجاح! سيتم إعادة تحميل التطبيق.");
+                    window.location.reload();
                 },
             });
         } catch (error) {
