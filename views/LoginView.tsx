@@ -18,14 +18,16 @@ const LoginView: React.FC = () => {
         setError(null);
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
-            // The 'signInWithPopup' method can be blocked in some environments (like sandboxed iframes).
-            // 'signInWithRedirect' is an alternative, but can also be blocked.
-            await auth.signInWithRedirect(provider);
-            // The result of the redirect will be handled by listeners in the main App component.
+            await auth.signInWithPopup(provider);
+            // After successful popup login, onAuthStateChanged in App.tsx will handle the rest.
+            // We don't need to set isGoogleSubmitting to false, as the component will unmount on success.
         } catch (err: any) {
             console.error("Firebase Google Auth Error:", err);
-            // Handle specific errors for a better user experience.
-            if (err.code === 'auth/operation-not-supported-in-this-environment') {
+            if (err.code === 'auth/popup-closed-by-user') {
+                setError("تم إلغاء عملية تسجيل الدخول.");
+            } else if (err.code === 'auth/popup-blocked') {
+                setError("تم حظر النافذة المنبثقة بواسطة المتصفح. يرجى السماح بالنوافذ المنبثقة لهذا الموقع.");
+            } else if (err.code === 'auth/operation-not-supported-in-this-environment') {
                 setError("تسجيل الدخول عبر جوجل غير مدعوم في هذه البيئة. الرجاء استخدام البريد الإلكتروني وكلمة المرور.");
             } else if (err.code === 'auth/network-request-failed') {
                 setError("فشل الاتصال بالشبكة. يرجى التحقق من اتصالك بالإنترنت.");

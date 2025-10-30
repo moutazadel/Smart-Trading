@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Portfolio, Expense, SubscriptionPlan, View, Trade, SummaryData, CurrencySummary, FinancialGoal, ExpenseCategory, UserProfile } from './types';
 import Header from './components/Header';
@@ -70,22 +67,8 @@ const App: React.FC = () => {
 
     // Main effect to handle user authentication state
     useEffect(() => {
-        // This is used to handle the result from a sign-in redirect.
-        // It's important to handle this to catch any errors from the redirect flow.
-        (async () => {
-            try {
-                await auth.getRedirectResult();
-            } catch (error: any) {
-                // This error can occur on load in environments where redirect operations are not supported
-                // (e.g., some sandboxed iframes). We can safely ignore it here, as the LoginView
-                // will provide a specific message to the user if they attempt the action.
-                if (error.code !== 'auth/operation-not-supported-in-this-environment') {
-                    console.error("Firebase Redirect Auth Error:", error);
-                }
-            }
-        })();
-
-        // Fix: Use the onAuthStateChanged method from the v8 compat auth object, not the standalone v9 function.
+        // The onAuthStateChanged listener handles user state changes from all sources,
+        // including email/password login and successful Google Popup sign-in.
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
             setIsLoading(true);
             if (user) {
@@ -277,7 +260,7 @@ const App: React.FC = () => {
             id: crypto.randomUUID(),
             portfolioId: portfolio.id,
             status: 'open',
-            openDate: new Date().toLocaleDateString('en-GB'), 
+            openDate: new Date().toISOString(), 
         };
 
         const portfolioDocRef = db.collection('users').doc(currentUser.uid).collection('portfolios').doc(portfolioId);
@@ -302,7 +285,7 @@ const App: React.FC = () => {
             ...tradeToClose,
             status: 'closed',
             closePrice: closePrice,
-            closeDate: new Date().toLocaleDateString('en-GB'),
+            closeDate: new Date().toISOString(),
             outcome: profitLoss >= 0 ? 'profit' : 'loss',
         };
         
@@ -382,7 +365,7 @@ const App: React.FC = () => {
         const newExpense: Omit<Expense, 'id'> = {
             description,
             amount,
-            date: new Date().toLocaleDateString('ar-EG'),
+            date: new Date().toISOString(),
             category,
         };
         
@@ -431,7 +414,7 @@ const App: React.FC = () => {
 
             const batch = db.batch();
 
-            const newWithdrawals = [...(portfolio.withdrawals || []), { amount, date: new Date().toLocaleDateString('en-GB') }];
+            const newWithdrawals = [...(portfolio.withdrawals || []), { amount, date: new Date().toISOString() }];
             batch.update(portfolioDocRef, {
                 currentCapital: portfolio.currentCapital - amount,
                 withdrawals: newWithdrawals
@@ -756,11 +739,16 @@ const App: React.FC = () => {
                                 <h3 className="text-xl font-semibold mb-4 text-gray-300">سجل المصروفات</h3>
                                 <div className="max-h-[400px] overflow-y-auto pr-2">
                                     {filteredExpenses.length > 0 ? filteredExpenses.map(expense => {
+                                        const formattedDate = new Date(expense.date).toLocaleDateString('ar-EG', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric'
+                                        });
                                         return (
                                         <div key={expense.id} className="bg-gray-900 p-4 rounded-lg mb-3 flex justify-between items-center">
                                             <div>
                                                 <p className="font-semibold text-lg">{expense.description}</p>
-                                                <p className="text-sm text-gray-400">{expense.category} - {expense.date}</p>
+                                                <p className="text-sm text-gray-400">{expense.category} - {formattedDate}</p>
                                             </div>
                                             <div className="flex items-center gap-4">
                                                 <p className="text-red-400 text-xl font-bold">{expense.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', numberingSystem: 'arab' } as any)}</p>

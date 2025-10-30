@@ -48,14 +48,10 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
     // Sort trades by date to show newest first
     const sortedTrades = useMemo(() => {
         return [...trades].sort((a, b) => {
-            const dateA = a.status === 'open' ? a.openDate : a.closeDate;
-            const dateB = b.status === 'open' ? b.openDate : b.closeDate;
-            // Assuming DD/MM/YYYY format, need to parse correctly for sorting
-            const partsA = dateA!.split('/');
-            const dtA = new Date(Number(partsA[2]), Number(partsA[1]) - 1, Number(partsA[0]));
-            const partsB = dateB!.split('/');
-            const dtB = new Date(Number(partsB[2]), Number(partsB[1]) - 1, Number(partsB[0]));
-            return dtB.getTime() - dtA.getTime();
+            const dateAStr = a.status === 'open' ? a.openDate : a.closeDate!;
+            const dateBStr = b.status === 'open' ? b.openDate : b.closeDate!;
+            // Dates are now ISO strings.
+            return new Date(dateBStr).getTime() - new Date(dateAStr).getTime();
         });
     }, [trades]);
 
@@ -67,7 +63,7 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
 
         closedTrades.forEach(trade => {
             if (!trade.closeDate) return;
-            const closeDate = new Date(trade.closeDate.split('/').reverse().join('-'));
+            const closeDate = new Date(trade.closeDate);
             const monthKey = `${closeDate.getFullYear()}-${closeDate.getMonth()}`;
 
             if (!dataByMonth[monthKey]) {
@@ -106,7 +102,7 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
 
         closedTrades.forEach(trade => {
             if (!trade.closeDate) return;
-            const closeDate = new Date(trade.closeDate.split('/').reverse().join('-'));
+            const closeDate = new Date(trade.closeDate);
             const yearKey = `${closeDate.getFullYear()}`;
 
             if (!dataByYear[yearKey]) {
@@ -260,8 +256,7 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
                                                 const profitLossPercent = (profitLoss / trade.tradeValue) * 100;
                                                 const isProfit = profitLoss >= 0;
 
-                                                const dateParts = trade.closeDate!.split('/');
-                                                const closeDateObj = new Date(Number(dateParts[2]), Number(dateParts[1]) - 1, Number(dateParts[0]));
+                                                const closeDateObj = new Date(trade.closeDate!);
                                                 const formattedDate = closeDateObj.toLocaleDateString('ar-EG', {
                                                     day: 'numeric',
                                                     month: 'long',

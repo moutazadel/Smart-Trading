@@ -24,6 +24,9 @@ const ClosedTradeCard: React.FC<ClosedTradeCardProps> = ({ trade, currency }) =>
         } as any);
     }
 
+    const formattedOpenDate = new Date(trade.openDate).toLocaleDateString('ar-EG');
+    const formattedCloseDate = trade.closeDate ? new Date(trade.closeDate).toLocaleDateString('ar-EG') : '';
+
     return (
         <div className="bg-gray-900/50 p-4 rounded-lg border-l-4 border-gray-600 space-y-3">
             {/* Top section with prices and info */}
@@ -43,8 +46,8 @@ const ClosedTradeCard: React.FC<ClosedTradeCardProps> = ({ trade, currency }) =>
                 {/* Left side: Close Info (last in DOM for RTL) */}
                 <div className="text-left space-y-1">
                     <div className="text-xs text-gray-400">
-                        <p>فتح: {trade.openDate}</p>
-                        <p>إغلاق: {trade.closeDate}</p>
+                        <p>فتح: {formattedOpenDate}</p>
+                        <p>إغلاق: {formattedCloseDate}</p>
                     </div>
                     <p className="text-gray-400 text-sm">سعر الإغلاق</p>
                     <p className="font-bold text-white text-lg">{formatNumber(trade.closePrice!, { minimumFractionDigits: 2 })}</p>

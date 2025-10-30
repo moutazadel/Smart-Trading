@@ -36,6 +36,7 @@ const TradeCard: React.FC<TradeCardProps> = ({ trade, currency, onOpenCloseModal
     };
 
     const quantity = trade.tradeValue / trade.purchasePrice;
+    const formattedOpenDate = new Date(trade.openDate).toLocaleDateString('ar-EG');
 
     return (
         <div className="bg-gray-900/70 p-4 rounded-lg flex items-center">
@@ -55,7 +56,7 @@ const TradeCard: React.FC<TradeCardProps> = ({ trade, currency, onOpenCloseModal
 
             {/* Middle Part */}
             <div className="flex-1 text-center text-sm space-y-1">
-                <p className="text-gray-400">{trade.openDate}</p>
+                <p className="text-gray-400">{formattedOpenDate}</p>
                 <p className="text-white font-semibold">{formatCurrency(trade.tradeValue)}</p>
                  <div 
                     className="flex items-center justify-center gap-1 text-red-400 font-semibold p-1" 

@@ -83,26 +83,25 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ portfolio }) 
         return trades
             .filter(trade => trade.status === 'closed' && trade.closeDate)
             .sort((a, b) => {
-                // Robustly parse DD/MM/YYYY dates by converting to YYYY-MM-DD
-                const dateA = new Date(a.closeDate!.split('/').reverse().join('-'));
-                const dateB = new Date(b.closeDate!.split('/').reverse().join('-'));
-                return dateB.getTime() - dateA.getTime(); // Sort descending (most recent first)
+                // Dates are now ISO strings. Sort descending (most recent first)
+                return new Date(b.closeDate!).getTime() - new Date(a.closeDate!).getTime();
             });
     }, [trades]);
 
     const capitalHistoryData = useMemo(() => {
         const sortedClosedTrades = [...closedTrades].sort((a, b) => {
-             const dateA = a.closeDate ? new Date(a.closeDate.split('/').reverse().join('-')) : new Date(0);
-             const dateB = b.closeDate ? new Date(b.closeDate.split('/').reverse().join('-')) : new Date(0);
-             return dateA.getTime() - dateB.getTime(); // Sort ascending for history
+             // Dates are now ISO strings. Sort ascending for history
+             const dateA = a.closeDate ? new Date(a.closeDate) : new Date(0);
+             const dateB = b.closeDate ? new Date(b.closeDate) : new Date(0);
+             return dateA.getTime() - dateB.getTime();
         });
 
         let history = [{ date: 'البداية', capital: portfolio.initialCapital, name: 'رأس المال المبدئي' }];
         let runningCapital = portfolio.initialCapital;
 
         const combinedEvents: any[] = [
-            ...sortedClosedTrades.map((t, i) => ({...t, type: 'trade', eventDate: new Date(t.closeDate!.split('/').reverse().join('-')), name: `صفقة #${i+1}: ${t.stockName}`})),
-            ...(portfolio.withdrawals || []).map(w => ({...w, type: 'withdrawal', eventDate: new Date(w.date.split('/').reverse().join('-')), name: `سحب للمدخرات`}))
+            ...sortedClosedTrades.map((t, i) => ({...t, type: 'trade', eventDate: new Date(t.closeDate!), name: `صفقة #${i+1}: ${t.stockName}`})),
+            ...(portfolio.withdrawals || []).map(w => ({...w, type: 'withdrawal', eventDate: new Date(w.date), name: `سحب للمدخرات`}))
         ].sort((a,b) => a.eventDate.getTime() - b.eventDate.getTime());
         
         // This is a simplified running capital calculation for the graph.
@@ -162,8 +161,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ portfolio }) 
     const stockAnalysisData = useMemo(() => {
         const analysis: { [key: string]: { trades: any[] } } = {};
         const sortedTradesForAnalysis = [...closedTrades].sort((a,b) => {
-             const dateA = a.closeDate ? new Date(a.closeDate.split('/').reverse().join('-')) : new Date(0);
-             const dateB = b.closeDate ? new Date(b.closeDate.split('/').reverse().join('-')) : new Date(0);
+             const dateA = a.closeDate ? new Date(a.closeDate) : new Date(0);
+             const dateB = b.closeDate ? new Date(b.closeDate) : new Date(0);
              return dateA.getTime() - dateB.getTime();
         });
         
@@ -216,7 +215,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ portfolio }) 
         }
         return closedTrades.filter(trade => 
             trade.stockName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            trade.closeDate?.includes(searchTerm)
+            (trade.closeDate && new Date(trade.closeDate).toLocaleDateString('ar-EG').includes(searchTerm))
         );
     }, [closedTrades, searchTerm]);
 
@@ -247,8 +246,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ portfolio }) 
             
             const rowData = [
                 trade.stockName,
-                trade.openDate,
-                trade.closeDate || '',
+                new Date(trade.openDate).toLocaleDateString('en-GB'),
+                trade.closeDate ? new Date(trade.closeDate).toLocaleDateString('en-GB') : '',
                 trade.purchasePrice,
                 trade.closePrice || '',
                 trade.tradeValue,
