@@ -1,11 +1,13 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { UserProfile } from '../types';
 import { CameraIcon } from '../components/icons/CameraIcon';
 import { UserCircleIcon } from '../components/icons/UserCircleIcon';
+import { SpinnerIcon } from '../components/icons/SpinnerIcon';
 
 interface ProfileViewProps {
     profile: UserProfile;
-    onSave: (profile: UserProfile) => void;
+    onSave: (profile: UserProfile) => Promise<void>;
 }
 
 const countriesData = [
@@ -41,6 +43,7 @@ const countriesData = [
 
 const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
     const [formData, setFormData] = useState<UserProfile>(profile);
+    const [isSaving, setIsSaving] = useState(false);
     const [selectedCountryCode, setSelectedCountryCode] = useState<string>('');
     const [localPhoneNumber, setLocalPhoneNumber] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +96,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
     };
 
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         if (!formData.name.trim()) {
@@ -112,9 +115,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
             alert('الرجاء اختيار دولة لرقم الهاتف الذي أدخلته.');
             return;
         }
-
-        onSave({ ...formData, phone: fullPhoneNumber });
-        alert('تم حفظ بيانات الملف الشخصي بنجاح!');
+        
+        setIsSaving(true);
+        try {
+            await onSave({ ...formData, phone: fullPhoneNumber });
+            // On success, navigation will happen automatically in App.tsx.
+            // No success alert needed here as navigation is the confirmation.
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'حدث خطأ غير متوقع.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -224,8 +235,19 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
                     </div>
 
                     <div className="pt-4">
-                        <button type="submit" className="w-full py-3 px-4 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg transition-colors">
-                            حفظ التغييرات
+                        <button 
+                            type="submit" 
+                            className="w-full py-3 px-4 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg transition-colors flex justify-center items-center gap-2 disabled:bg-cyan-700 disabled:cursor-wait"
+                            disabled={isSaving}
+                        >
+                             {isSaving ? (
+                                <>
+                                    <SpinnerIcon />
+                                    <span>جاري الحفظ...</span>
+                                </>
+                            ) : (
+                                'حفظ التغييرات'
+                            )}
                         </button>
                     </div>
                 </form>

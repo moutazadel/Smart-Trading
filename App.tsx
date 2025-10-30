@@ -440,11 +440,18 @@ const App: React.FC = () => {
     }
     
     const handleSaveProfile = async (updatedProfile: UserProfile) => {
-        if (!currentUser) return;
-        const userDocRef = doc(db, 'users', currentUser.uid);
-        await updateDoc(userDocRef, { ...updatedProfile });
-        setProfile(updatedProfile);
-        setActiveView(View.Portfolios);
+        if (!currentUser) {
+            throw new Error("User not authenticated.");
+        }
+        try {
+            const userDocRef = doc(db, 'users', currentUser.uid);
+            await updateDoc(userDocRef, { ...updatedProfile });
+            setProfile(updatedProfile);
+            setActiveView(View.Portfolios);
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            throw new Error("فشل تحديث الملف الشخصي. الرجاء المحاولة مرة أخرى.");
+        }
     };
     
     const handleLogout = () => {
