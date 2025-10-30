@@ -36,10 +36,7 @@ declare global {
 }
 
 const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState('');
 
     // This effect will run once the component is mounted
     useEffect(() => {
@@ -91,83 +88,21 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
         onLogin(userProfile);
     };
-    
-    // This is still a mock function for email/password login
-    const mockEmailLogin = () => {
-        setIsSubmitting(true);
-        setError('');
-        setTimeout(() => {
-            onLogin({ name: email.split('@')[0], email: email });
-             setIsSubmitting(false);
-        }, 1500);
-    };
-
-
-    const handleEmailLogin = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!email.trim() || !password.trim()) {
-            setError('الرجاء إدخال البريد الإلكتروني وكلمة المرور.');
-            return;
-        }
-        mockEmailLogin();
-    };
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-            <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700">
-                <h2 className="text-3xl font-bold text-center text-white mb-6">تسجيل الدخول إلى محفظتك</h2>
+            <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700 text-center">
+                <h2 className="text-3xl font-bold text-white mb-4">مرحباً بك في المحفظة الذكية</h2>
+                <p className="text-gray-400 mb-8">سجل الدخول أو أنشئ حسابًا جديدًا باستخدام جوجل للبدء.</p>
                 
-                {/* This div will hold the official Google button */}
-                <div id="google-signin-button" className="flex justify-center mb-4 transition-transform hover:scale-105"></div>
-
-
-                <div className="flex items-center my-6">
-                    <hr className="flex-grow border-slate-600" />
-                    <span className="px-4 text-gray-400 text-sm">أو</span>
-                    <hr className="flex-grow border-slate-600" />
-                </div>
-
-                <form onSubmit={handleEmailLogin} className="space-y-4">
-                    <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">البريد الإلكتروني</label>
-                        <input 
-                            type="email" 
-                            id="email" 
-                            value={email} 
-                            onChange={(e) => setEmail(e.target.value)} 
-                            placeholder="you@example.com" 
-                            className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-cyan-500 focus:border-cyan-500"
-                            required 
-                        />
+                {isSubmitting ? (
+                     <div className="flex items-center justify-center gap-3 text-white py-3">
+                        <SpinnerIcon className="w-6 h-6" />
+                        <span>جاري تسجيل الدخول...</span>
                     </div>
-                    <div>
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">كلمة المرور</label>
-                        <input 
-                            type="password" 
-                            id="password" 
-                            value={password} 
-                            onChange={(e) => setPassword(e.target.value)} 
-                            placeholder="••••••••" 
-                            className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-cyan-500 focus:border-cyan-500" 
-                            required
-                        />
-                    </div>
-                    
-                    {error && <p className="text-red-400 text-sm text-center pt-2">{error}</p>}
-
-                    <button 
-                        type="submit" 
-                        disabled={isSubmitting}
-                        className="w-full flex items-center justify-center gap-3 bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-cyan-700 disabled:cursor-wait"
-                    >
-                        {isSubmitting ? (
-                            <>
-                                <SpinnerIcon />
-                                <span>جاري التحقق...</span>
-                            </>
-                        ) : 'تسجيل الدخول'}
-                    </button>
-                </form>
+                ) : (
+                    <div id="google-signin-button" className="flex justify-center transition-transform hover:scale-105"></div>
+                )}
             </div>
              <footer className="absolute bottom-0 text-center py-4 text-gray-500 text-sm">
                 هذا التطبيق من تطوير <a href="https://www.facebook.com/moutaz.adel" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">معتز عادل</a>

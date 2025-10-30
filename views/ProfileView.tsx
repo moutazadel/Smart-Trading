@@ -96,30 +96,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!formData.name.trim() || !formData.email.trim()) {
-            alert('الرجاء ملء الحقول الأساسية: الاسم والبريد الإلكتروني.');
+        if (!formData.name.trim()) {
+            alert('الرجاء ملء حقل الاسم.');
             return;
         }
 
-        if(!emailRegex.test(formData.email)) {
-            alert('الرجاء إدخال بريد إلكتروني صالح.');
-            return;
-        }
-
-        let fullPhoneNumber = localPhoneNumber;
-        if (selectedCountryData) {
-            if (!localPhoneNumber.trim()) {
-                alert('الرجاء إدخال رقم الهاتف.');
-                return;
-            }
-            if (selectedCountryData.phoneRegex && !selectedCountryData.phoneRegex.test(localPhoneNumber)) {
+        let fullPhoneNumber = localPhoneNumber.trim();
+        if (selectedCountryData && fullPhoneNumber) {
+            if (selectedCountryData.phoneRegex && !selectedCountryData.phoneRegex.test(fullPhoneNumber)) {
                 alert(`رقم الهاتف الذي أدخلته غير صالح لـ ${selectedCountryData.name}.`);
                 return;
             }
-            fullPhoneNumber = selectedCountryData.phoneCode + localPhoneNumber;
-        } else if (localPhoneNumber.trim()) {
-             alert('الرجاء اختيار دولة.');
+            fullPhoneNumber = selectedCountryData.phoneCode + fullPhoneNumber;
+        } else if (fullPhoneNumber && !selectedCountryData) {
+            alert('الرجاء اختيار دولة لرقم الهاتف الذي أدخلته.');
             return;
         }
 
@@ -161,7 +151,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">الاسم (أساسي)</label>
+                            <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">الاسم</label>
                             <input
                                 type="text"
                                 id="name"
@@ -189,7 +179,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                          <div>
-                            <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-2">رقم الهاتف (أساسي)</label>
+                            <label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-2">رقم الهاتف</label>
                             <div className="flex">
                                 <span className="inline-flex items-center px-3 text-sm text-gray-400 bg-slate-900 border border-l-0 border-slate-600 rounded-r-lg">
                                     {selectedCountryData?.phoneCode || '+??'}
@@ -201,7 +191,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
                                     value={localPhoneNumber}
                                     onChange={(e) => setLocalPhoneNumber(e.target.value.replace(/[^0-9]/g, ''))}
                                     className="w-full bg-slate-700 border border-slate-600 text-white rounded-l-lg px-4 py-3 focus:ring-cyan-500 focus:border-cyan-500"
-                                    required
                                     dir="ltr"
                                 />
                             </div>
@@ -222,15 +211,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
                     </div>
 
                      <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">البريد الإلكتروني</label>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">البريد الإلكتروني (غير قابل للتعديل)</label>
                         <input
                             type="email"
                             id="email"
                             name="email"
                             value={formData.email}
-                            onChange={handleInputChange}
-                            className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-3 focus:ring-cyan-500 focus:border-cyan-500"
-                            required
+                            className="w-full bg-slate-900 border border-slate-700 text-gray-400 rounded-lg px-4 py-3 cursor-not-allowed"
+                            readOnly
+                            disabled
                         />
                     </div>
 
