@@ -22,7 +22,9 @@ import ProfileView from './views/ProfileView';
 import LoginView from './views/LoginView';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
 import { auth, db } from './firebaseConfig';
-import { onAuthStateChanged, User } from 'firebase/auth';
+// Fix: Removed `onAuthStateChanged` from this import as it's a v9 modular function.
+// The `User` type is generally compatible.
+import { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, writeBatch, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 
@@ -68,7 +70,8 @@ const App: React.FC = () => {
 
     // Main effect to handle user authentication state
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        // Fix: Use the onAuthStateChanged method from the v8 compat auth object, not the standalone v9 function.
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
             setIsLoading(true);
             if (user) {
                 setCurrentUser(user);
