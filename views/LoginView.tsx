@@ -49,7 +49,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 // =================================================================
                 // === تم وضع الـ CLIENT ID الخاص بك هنا ===
                 // =================================================================
-                client_id: '483439422637-mqgigupl48f9b27jk9luah0cl5b6ifo5.apps.googleusercontent.com',
+                client_id: '483439422637-h6n0tta8mv5hbhjhs5scu76d8e8h9mht.apps.googleusercontent.com',
                 callback: handleGoogleCredentialResponse
             });
 
