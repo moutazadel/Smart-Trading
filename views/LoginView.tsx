@@ -46,9 +46,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         // Check if the google object is available
         if (window.google) {
             window.google.accounts.id.initialize({
-                // =================================================================
-                // === تم وضع الـ CLIENT ID الخاص بك هنا ===
-                // =================================================================
                 client_id: '483439422637-h6n0tta8mv5hbhjhs5scu76d8e8h9mht.apps.googleusercontent.com',
                 callback: handleGoogleCredentialResponse
             });
