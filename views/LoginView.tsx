@@ -45,6 +45,27 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     useEffect(() => {
         // Check if the google object is available
         if (window.google) {
+            /*
+             * ==============================================================================
+             * ملاحظة هامة للمطور: خطأ "origin_mismatch"
+             * ==============================================================================
+             * إذا واجهت خطأ "Error 400: origin_mismatch" عند محاولة تسجيل الدخول،
+             * فهذا يعني أن عنوان URL الذي يعمل عليه تطبيقك حاليًا غير مسموح به
+             * في إعدادات Google Cloud Console.
+             *
+             * لحل هذه المشكلة، اتبع الخطوات التالية:
+             * 1. انسخ عنوان URL الكامل من شريط عنوان المتصفح (مثل: https://....aistudio.google.com).
+             * 2. اذهب إلى Google Cloud Console: https://console.cloud.google.com/
+             * 3. انتقل إلى "APIs & Services" > "Credentials".
+             * 4. ابحث عن "OAuth 2.0 Client ID" الذي تستخدمه (الذي يبدأ بـ '483439...').
+             * 5. انقر على اسم الـ Client ID لتعديله.
+             * 6. في قسم "Authorized JavaScript origins"، انقر على "ADD URI".
+             * 7. الصق عنوان URL الذي نسخته في الخطوة 1.
+             * 8. انقر على "Save".
+             *
+             * قد يستغرق تطبيق التغييرات بضع دقائق. بعد ذلك، يجب أن يعمل تسجيل الدخول بنجاح.
+             * ==============================================================================
+             */
             window.google.accounts.id.initialize({
                 client_id: '483439422637-h6n0tta8mv5hbhjhs5scu76d8e8h9mht.apps.googleusercontent.com',
                 callback: handleGoogleCredentialResponse
