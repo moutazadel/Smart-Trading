@@ -7,10 +7,9 @@ interface DetailHeaderProps {
     portfolioName: string;
     onEditName: () => void;
     userEmail?: string;
-    userAvatar?: string;
 }
 
-const DetailHeader: React.FC<DetailHeaderProps> = ({ portfolioName, onEditName, userEmail, userAvatar }) => {
+const DetailHeader: React.FC<DetailHeaderProps> = ({ portfolioName, onEditName, userEmail }) => {
     return (
         <header className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
@@ -25,11 +24,7 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({ portfolioName, onEditName, 
             </div>
             <div className="flex items-center gap-4">
                 <span className="text-gray-300 hidden sm:block">{userEmail || '...'}</span>
-                 {userAvatar ? (
-                    <img src={userAvatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover" />
-                ) : (
-                    <UserCircleIcon className="w-8 h-8 text-gray-400" />
-                )}
+                <UserCircleIcon className="w-8 h-8 text-gray-400" />
                 <button className="text-gray-400 hover:text-white">
                     <MoonIcon />
                 </button>

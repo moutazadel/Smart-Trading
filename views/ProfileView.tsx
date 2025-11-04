@@ -7,7 +7,7 @@ import { SpinnerIcon } from '../components/icons/SpinnerIcon';
 
 interface ProfileViewProps {
     profile: UserProfile;
-    onSave: (profile: UserProfile) => Promise<void>;
+    onSave: (profile: UserProfile) => void;
 }
 
 const countriesData = [
@@ -96,7 +96,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
     };
 
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
         if (!formData.name.trim()) {
@@ -118,9 +118,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ profile, onSave }) => {
         
         setIsSaving(true);
         try {
-            await onSave({ ...formData, phone: fullPhoneNumber });
+            onSave({ ...formData, phone: fullPhoneNumber });
             // On success, navigation will happen automatically in App.tsx.
-            // No success alert needed here as navigation is the confirmation.
         } catch (error) {
             alert(error instanceof Error ? error.message : 'حدث خطأ غير متوقع.');
         } finally {

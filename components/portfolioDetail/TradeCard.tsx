@@ -1,5 +1,6 @@
 
-import React, { useState } from 'react';
+
+import React from 'react';
 import { Trade } from '../../types';
 import { TrashIcon } from '../icons/TrashIcon';
 import { ArrowTrendingUpIcon } from '../icons/ArrowTrendingUpIcon';
@@ -15,11 +16,23 @@ interface TradeCardProps {
 }
 
 const TradeCard: React.FC<TradeCardProps> = ({ trade, currency, onOpenCloseModal, onDelete, onOpenEditModal }) => {
+
+    const formatSpecialCurrency = (amount: number) => {
+        // FIX: Cast options to `any` to allow `numberingSystem` which is a valid but sometimes untyped property.
+        const num = amount.toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2, numberingSystem: 'arab' } as any);
+        if (currency === 'EGP') return `${num} م.ج`;
+        return `${num} ${currency}`;
+    };
     
-    const formatCurrency = (amount: number) => {
-      return amount.toLocaleString('ar-EG', { style: 'currency', currency: currency, minimumFractionDigits: 2, numberingSystem: 'arab' } as any);
-    }
-    
+    const formatDate = (isoString: string) => {
+        if (!isoString) return 'غير محدد';
+        const date = new Date(isoString);
+        const year = new Intl.NumberFormat('ar-EG-u-nu-arab', { useGrouping: false }).format(date.getFullYear());
+        const month = new Intl.NumberFormat('ar-EG-u-nu-arab', { useGrouping: false }).format(date.getMonth() + 1);
+        const day = new Intl.NumberFormat('ar-EG-u-nu-arab', { useGrouping: false }).format(date.getDate());
+        return `${year}/${month}/${day}`;
+    };
+
     const formatNumber = (num: number, options: Intl.NumberFormatOptions = {}) => {
         return num.toLocaleString('ar-EG', {
             useGrouping: false,
@@ -28,50 +41,45 @@ const TradeCard: React.FC<TradeCardProps> = ({ trade, currency, onOpenCloseModal
         } as any);
     };
 
-    const handleClose = () => {
-        onOpenCloseModal(trade);
-    };
-
-    const handleDelete = () => {
-        onDelete(trade.id);
-    };
-
     const quantity = trade.tradeValue / trade.purchasePrice;
-    const formattedOpenDate = trade.openDate ? new Date(trade.openDate).toLocaleDateString('ar-EG') : 'غير محدد';
 
     return (
-        <div className="bg-gray-900/70 p-4 rounded-lg flex items-center">
-            {/* Right Part (in RTL) */}
-            <div className="flex-1 text-right space-y-1">
-                <p className="font-bold text-lg text-yellow-400">{trade.stockName.toUpperCase()}</p>
-                <p className="text-sm text-gray-300">
-                    <span className="font-semibold text-white">{formatNumber(quantity, {maximumFractionDigits: 2})}</span> سهم بسعر <span className="font-semibold text-white">{formatNumber(trade.purchasePrice, {minimumFractionDigits: 2})}</span>
-                </p>
-                <div 
-                    className="flex items-center justify-end gap-1 text-green-400 font-semibold text-sm p-1" 
-                >
-                    <span>{formatNumber(trade.takeProfit, {minimumFractionDigits: 2})}</span>
-                    <ArrowTrendingUpIcon className="w-4 h-4" />
+        <div className="bg-gray-800/50 p-4 rounded-lg border-l-4 border-yellow-400">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                {/* Right Group (Stock Info) */}
+                <div className="flex-[2] text-right">
+                    <p className="font-bold text-xl text-yellow-400">{trade.stockName.toUpperCase()}</p>
+                    <p className="text-sm text-gray-300">
+                        {formatNumber(quantity, {maximumFractionDigits: 2})} سهم بسعر {formatNumber(trade.purchasePrice, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    </p>
+                </div>
+
+                {/* Middle Group (Date & Value) */}
+                <div className="flex-[1.5] text-right sm:text-center sm:px-4">
+                    <p className="text-gray-400 text-sm">{formatDate(trade.openDate)}</p>
+                    <p className="font-bold text-white text-lg">{formatSpecialCurrency(trade.tradeValue)}</p>
+                </div>
+
+                {/* Left Group (TP/SL) */}
+                <div className="flex-[2] text-right sm:text-left space-y-1">
+                    <div className="flex items-center sm:justify-end gap-2 text-green-400 font-semibold">
+                        <span>{formatNumber(trade.takeProfit, {minimumFractionDigits: 2})}</span>
+                        <ArrowTrendingUpIcon className="w-5 h-5" />
+                    </div>
+                    <div className="flex items-center sm:justify-end gap-2 text-red-400 font-semibold">
+                        <span>{formatNumber(trade.stopLoss, {minimumFractionDigits: 2})}</span>
+                        <ArrowTrendingDownIcon className="w-5 h-5" />
+                    </div>
                 </div>
             </div>
 
-            {/* Middle Part */}
-            <div className="flex-1 text-center text-sm space-y-1">
-                <p className="text-gray-400">{formattedOpenDate}</p>
-                <p className="text-white font-semibold">{formatCurrency(trade.tradeValue)}</p>
-                 <div 
-                    className="flex items-center justify-center gap-1 text-red-400 font-semibold p-1" 
-                 >
-                    <span>{formatNumber(trade.stopLoss, {minimumFractionDigits: 2})}</span>
-                    <ArrowTrendingDownIcon className="w-4 h-4" />
-                </div>
-            </div>
+            <hr className="border-gray-700 my-3" />
 
-            {/* Left Part (in RTL) */}
-            <div className="flex items-center gap-2">
-                <button onClick={handleDelete} className="text-gray-400 hover:text-red-500 transition-colors p-2"><TrashIcon /></button>
-                <button onClick={() => onOpenEditModal(trade)} className="text-gray-400 hover:text-cyan-400 transition-colors p-2"><PencilIcon /></button>
-                <button onClick={handleClose} className="bg-yellow-500 text-black font-bold text-sm px-4 py-1.5 rounded-md hover:bg-yellow-60-colors">إغلاق</button>
+            {/* Actions */}
+            <div className="flex justify-start items-center gap-2">
+                <button onClick={() => onOpenCloseModal(trade)} className="bg-yellow-500 text-black font-bold text-sm px-6 py-2 rounded-md hover:bg-yellow-600 transition-colors">إغلاق</button>
+                <button onClick={() => onOpenEditModal(trade)} className="text-gray-400 hover:text-cyan-400 transition-colors p-2 rounded-full hover:bg-gray-700"><PencilIcon /></button>
+                <button onClick={() => onDelete(trade.id)} className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-gray-700"><TrashIcon /></button>
             </div>
         </div>
     );

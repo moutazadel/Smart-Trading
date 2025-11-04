@@ -7,7 +7,7 @@ import InfoGridCard from '../components/portfolioDetail/InfoGridCard';
 import TradingView from '../components/portfolioDetail/TradingView';
 import PerformanceAnalysis from '../components/portfolioDetail/PerformanceAnalysis';
 import FinancialGoalsModal from '../components/portfolioDetail/FinancialGoalsModal';
-import UpdateCapitalModal from '../components/portfolioDetail/UpdateCapitalModal';
+import ManageCapitalModal from '../components/portfolioDetail/UpdateCapitalModal';
 import EditPortfolioModal from '../components/portfolioDetail/EditPortfolioModal';
 import EditTradeModal from '../components/portfolioDetail/EditTradeModal';
 import AddTradeModal from '../components/portfolioDetail/AddTradeModal';
@@ -29,10 +29,11 @@ interface PortfolioDetailProps {
     onDeleteTrade: (tradeId: string) => void;
     onUpdateDetails: (details: { financialGoals?: FinancialGoal[], name?: string }) => void;
     onUpdateTrade: (tradeId: string, details: Partial<Omit<Trade, 'id' | 'portfolioId'>>) => void;
-    onAddCapital: (amountToAdd: number) => void;
+    onAdjustCapital: (amountToAdjust: number) => void;
+    onResetCapital: (newCapital: number) => void;
 }
 
-const PortfolioDetail: React.FC<PortfolioDetailProps> = ({ portfolio, profile, onBack, onAddTrade, onCloseTrade, onDeleteTrade, onUpdateDetails, onUpdateTrade, onAddCapital }) => {
+const PortfolioDetail: React.FC<PortfolioDetailProps> = ({ portfolio, profile, onBack, onAddTrade, onCloseTrade, onDeleteTrade, onUpdateDetails, onUpdateTrade, onAdjustCapital, onResetCapital }) => {
     const [activeTab, setActiveTab] = useState<'trading' | 'analysis'>('trading');
     const [isGoalsModalOpen, setGoalsModalOpen] = useState(false);
     const [isCapitalModalOpen, setCapitalModalOpen] = useState(false);
@@ -149,7 +150,6 @@ const PortfolioDetail: React.FC<PortfolioDetailProps> = ({ portfolio, profile, o
                 portfolioName={portfolio.name} 
                 onEditName={() => setEditPortfolioModalOpen(true)}
                 userEmail={profile?.email}
-                userAvatar={profile?.avatar}
             />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -212,10 +212,11 @@ const PortfolioDetail: React.FC<PortfolioDetailProps> = ({ portfolio, profile, o
             )}
 
             {isCapitalModalOpen && (
-                <UpdateCapitalModal 
+                <ManageCapitalModal
                     portfolio={portfolio}
                     onClose={() => setCapitalModalOpen(false)}
-                    onAddCapital={onAddCapital}
+                    onAdjustCapital={onAdjustCapital}
+                    onResetCapital={onResetCapital}
                 />
             )}
 
