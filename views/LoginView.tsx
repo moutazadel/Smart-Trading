@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { SpinnerIcon } from '../components/icons/SpinnerIcon';
-import { GoogleIcon } from '../components/icons/GoogleIcon';
 import { auth } from '../firebaseConfig';
-import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 
 const LoginView: React.FC = () => {
@@ -10,35 +8,8 @@ const LoginView: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
-    const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const handleGoogleSignIn = async () => {
-        setIsGoogleSubmitting(true);
-        setError(null);
-        try {
-            // By removing explicit persistence setting, we let Firebase SDK handle it.
-            // It defaults to 'local' but has fallbacks for restricted environments.
-            const provider = new firebase.auth.GoogleAuthProvider();
-            await auth.signInWithPopup(provider);
-            // onAuthStateChanged in App.tsx will handle the success case.
-        } catch (err: any) {
-            console.error("Firebase Google Auth Error:", err);
-            if (err.code === 'auth/popup-closed-by-user') {
-                setError("تم إلغاء عملية تسجيل الدخول.");
-            } else if (err.code === 'auth/popup-blocked') {
-                setError("تم حظر النافذة المنبثقة بواسطة المتصفح. يرجى السماح بالنوافذ المنبثقة لهذا الموقع.");
-            } else if (err.code === 'auth/operation-not-supported-in-this-environment') {
-                setError("تسجيل الدخول عبر جوجل غير ممكن في هذه البيئة. قد يكون المتصفح في وضع التصفح الخفي أو هناك قيود تمنع النوافذ المنبثقة. الرجاء محاولة استخدام متصفح آخر أو تسجيل الدخول باستخدام البريد الإلكتروني وكلمة المرور.");
-            } else if (err.code === 'auth/network-request-failed') {
-                setError("فشل الاتصال بالشبكة. يرجى التحقق من اتصالك بالإنترنت.");
-            } else {
-                setError("حدث خطأ عند محاولة تسجيل الدخول عبر جوجل.");
-            }
-            setIsGoogleSubmitting(false);
-        }
-    };
-    
     const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsEmailSubmitting(true);
@@ -75,7 +46,7 @@ const LoginView: React.FC = () => {
         }
     };
 
-    const isSubmitting = isEmailSubmitting || isGoogleSubmitting;
+    const isSubmitting = isEmailSubmitting;
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
@@ -118,33 +89,9 @@ const LoginView: React.FC = () => {
                     </button>
                 </form>
 
-                <div className="text-center mt-4">
+                <div className="text-center mt-6">
                     <button onClick={() => setIsLoginView(!isLoginView)} className="text-sm text-cyan-400 hover:underline">
                         {isLoginView ? 'ليس لديك حساب؟ أنشئ واحداً' : 'لديك حساب بالفعل؟ سجل الدخول'}
-                    </button>
-                </div>
-
-                <div className="relative my-6">
-                    <hr className="border-slate-600"/>
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-800 px-2 text-gray-400 text-sm">أو</span>
-                </div>
-
-                <div className="space-y-3">
-                    <p className="text-xs text-yellow-300 bg-yellow-900/50 p-2 rounded-md border border-yellow-700">
-                        ملاحظة: الدخول لأول مرة عبر جوجل سيؤدي لإنشاء حساب جديد تلقائياً
-                    </p>
-                    <button
-                        type="button"
-                        onClick={handleGoogleSignIn}
-                        disabled={isSubmitting}
-                        className="w-full flex justify-center items-center gap-3 bg-white hover:bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-300 disabled:cursor-wait"
-                    >
-                        {isGoogleSubmitting ? (
-                             <SpinnerIcon className="w-6 h-6 text-gray-800" />
-                        ) : (
-                            <GoogleIcon />
-                        )}
-                        <span>{isGoogleSubmitting ? 'جاري التحميل...' : 'المتابعة باستخدام جوجل'}</span>
                     </button>
                 </div>
                 
