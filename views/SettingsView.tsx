@@ -119,6 +119,17 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
             </div>
 
+            {/* API Key Settings */}
+             <div className="max-w-3xl mx-auto mt-8">
+                 <div className="bg-gray-800/50 p-6 rounded-xl shadow-lg">
+                    <h3 className="text-2xl font-semibold text-white mb-3 text-center">بيانات السوق الحية</h3>
+                     <p className="text-gray-400 text-center">
+                        يتم توفير بيانات أسعار الأسهم الحية بواسطة <a href="https://finnhub.io" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Finnhub</a>.
+                        لتمكين هذه الميزة، يرجى إضافة مفتاح API المجاني الخاص بك في ملف <code>services/marketApi.ts</code>. بدون المفتاح، لن يتم عرض البيانات الحية في تفاصيل المحفظة.
+                    </p>
+                </div>
+            </div>
+
             {/* Notification Settings */}
              <div className="max-w-3xl mx-auto mt-8">
                  <div className="bg-gray-800/50 p-6 rounded-xl shadow-lg">
