@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Portfolio, Expense, SubscriptionPlan, View, Trade, SummaryData, CurrencySummary, FinancialGoal, ExpenseCategory, UserProfile } from './types';
 import Header from './components/Header';
@@ -234,12 +235,6 @@ const App: React.FC = () => {
         const portfolio = portfolios.find(p => p.id === portfolioId);
         if (!portfolio || portfolio.currentCapital < tradeData.tradeValue) {
             alert("رصيد المحفظة غير كافٍ لفتح هذه الصفقة!");
-            return;
-        }
-
-        const hasOpenTrade = portfolio.trades.some(t => t.status === 'open');
-        if (hasOpenTrade) {
-            alert("لا يمكن فتح صفقة جديدة. مسموح بصفقة واحدة مفتوحة فقط في كل محفظة.");
             return;
         }
 

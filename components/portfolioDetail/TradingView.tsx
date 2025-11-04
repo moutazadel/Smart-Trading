@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { Trade } from '../../types';
 import TradeCard from './TradeCard';
@@ -49,7 +50,6 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
 
     const openTrades = sortedTrades.filter(t => t.status === 'open');
     const closedTrades = sortedTrades.filter(t => t.status === 'closed');
-    const hasOpenTrade = openTrades.length > 0;
 
     const filterButtonClass = (key: 'all' | 'open' | 'closed') => `px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
         filter === key ? 'bg-cyan-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -59,10 +59,9 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
         <>
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                 <button 
-                    onClick={onOpenAddTradeModal} 
-                    disabled={hasOpenTrade}
-                    title={hasOpenTrade ? "لا يمكن فتح صفقة جديدة، لديك صفقة مفتوحة بالفعل." : "فتح صفقة جديدة"}
-                    className={`flex items-center gap-2 bg-cyan-500 text-white font-bold py-2 px-5 rounded-lg transition-colors w-full sm:w-auto ${hasOpenTrade ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-600'}`}
+                    onClick={onOpenAddTradeModal}
+                    title="فتح صفقة جديدة"
+                    className="flex items-center gap-2 bg-cyan-500 text-white font-bold py-2 px-5 rounded-lg transition-colors w-full sm:w-auto hover:bg-cyan-600"
                 >
                     <PlusIcon />
                     فتح صفقة جديدة
