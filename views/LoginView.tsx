@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { SpinnerIcon } from '../components/icons/SpinnerIcon';
-import { auth } from '../firebaseConfig';
+import { auth, googleProvider } from '../firebaseConfig';
 import 'firebase/compat/auth';
+import { GoogleIcon } from '../components/icons/GoogleIcon';
 
 const LoginView: React.FC = () => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
+    const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleEmailPasswordSubmit = async (e: React.FormEvent) => {
@@ -45,8 +47,23 @@ const LoginView: React.FC = () => {
             setIsEmailSubmitting(false);
         }
     };
+    
+    const handleGoogleSignIn = async () => {
+        setIsGoogleSubmitting(true);
+        setError(null);
+        try {
+            await auth.signInWithPopup(googleProvider);
+        } catch (err: any) {
+            // Don't show an error if the user closes the popup
+            if (err.code !== 'auth/popup-closed-by-user') {
+                 setError('حدث خطأ أثناء تسجيل الدخول عبر جوجل. الرجاء المحاولة مرة أخرى.');
+            }
+        } finally {
+            setIsGoogleSubmitting(false);
+        }
+    };
 
-    const isSubmitting = isEmailSubmitting;
+    const isSubmitting = isEmailSubmitting || isGoogleSubmitting;
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
@@ -88,6 +105,23 @@ const LoginView: React.FC = () => {
                          {isLoginView ? 'تسجيل الدخول' : 'إنشاء حساب'}
                     </button>
                 </form>
+
+                <div className="relative flex py-5 items-center">
+                    <div className="flex-grow border-t border-slate-600"></div>
+                    <span className="flex-shrink mx-4 text-gray-400 text-sm">أو</span>
+                    <div className="flex-grow border-t border-slate-600"></div>
+                </div>
+
+                <button 
+                    type="button" 
+                    onClick={handleGoogleSignIn}
+                    disabled={isSubmitting}
+                    className="w-full flex justify-center items-center gap-3 bg-white hover:bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg transition-colors disabled:bg-gray-300 disabled:cursor-wait"
+                >
+                    {isGoogleSubmitting ? <SpinnerIcon className="text-gray-800" /> : <GoogleIcon />}
+                    <span>{isLoginView ? 'تسجيل الدخول باستخدام جوجل' : 'إنشاء حساب باستخدام جوجل'}</span>
+                </button>
+
 
                 <div className="text-center mt-6">
                     <button onClick={() => setIsLoginView(!isLoginView)} className="text-sm text-cyan-400 hover:underline">

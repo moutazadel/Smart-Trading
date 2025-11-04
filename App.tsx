@@ -20,6 +20,11 @@ import SavingsCard from './components/SavingsCard';
 import WithdrawToSavingsModal from './components/WithdrawToSavingsModal';
 import ExpenseCategoryFilter from './components/ExpenseCategoryFilter';
 import ProfileView from './views/ProfileView';
+import LoginView from './views/LoginView';
+import { auth } from './firebaseConfig';
+import firebase from 'firebase/compat/app';
+import { SpinnerIcon } from './components/icons/SpinnerIcon';
+
 
 const DEFAULT_PROFILE: UserProfile = {
     name: 'مستخدم جديد',
@@ -31,42 +36,13 @@ const DEFAULT_PROFILE: UserProfile = {
 };
 
 const App: React.FC = () => {
-    const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
-        try {
-            const saved = localStorage.getItem('portfolios');
-            return saved ? JSON.parse(saved) : [];
-        } catch (error) {
-            console.error("Failed to parse portfolios from localStorage", error);
-            return [];
-        }
-    });
-    const [expenses, setExpenses] = useState<Expense[]>(() => {
-        try {
-            const saved = localStorage.getItem('expenses');
-            return saved ? JSON.parse(saved) : [];
-        } catch (error) {
-            console.error("Failed to parse expenses from localStorage", error);
-            return [];
-        }
-    });
-    const [savingsBalance, setSavingsBalance] = useState<number>(() => {
-        try {
-            const saved = localStorage.getItem('savingsBalance');
-            return saved ? JSON.parse(saved) : 0;
-        } catch (error) {
-            console.error("Failed to parse savingsBalance from localStorage", error);
-            return 0;
-        }
-    });
-     const [profile, setProfile] = useState<UserProfile>(() => {
-        try {
-            const saved = localStorage.getItem('userProfile');
-            return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
-        } catch (error) {
-            console.error("Failed to parse profile from localStorage", error);
-            return DEFAULT_PROFILE;
-        }
-    });
+    const [user, setUser] = useState<firebase.User | null>(auth.currentUser);
+    const [loadingAuth, setLoadingAuth] = useState(true);
+
+    const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [savingsBalance, setSavingsBalance] = useState<number>(0);
+    const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
 
     const [activeView, setActiveView] = useState<View>(View.Portfolios);
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
@@ -78,10 +54,7 @@ const App: React.FC = () => {
     const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<ExpenseCategory | 'الكل'>('الكل');
     
     // Notification State
-    const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
-        const saved = localStorage.getItem('notificationsEnabled');
-        return saved ? JSON.parse(saved) : true;
-    });
+    const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(Notification.permission);
     
     // Confirmation Modal State
@@ -92,26 +65,76 @@ const App: React.FC = () => {
         onConfirm: () => {},
     });
 
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((userAuth) => {
+            setUser(userAuth);
+            setLoadingAuth(false);
+        });
+        return unsubscribe;
+    }, []);
+
+     // Load and clear data on user state change
+    useEffect(() => {
+        if (!user) {
+            // Clear state on logout
+            setPortfolios([]);
+            setExpenses([]);
+            setSavingsBalance(0);
+            setProfile(DEFAULT_PROFILE);
+            setActiveView(View.Portfolios);
+            return;
+        }
+
+        const loadUserData = () => {
+            try {
+                const savedPortfolios = localStorage.getItem(`portfolios_${user.uid}`);
+                setPortfolios(savedPortfolios ? JSON.parse(savedPortfolios) : []);
+                
+                const savedExpenses = localStorage.getItem(`expenses_${user.uid}`);
+                setExpenses(savedExpenses ? JSON.parse(savedExpenses) : []);
+
+                const savedSavings = localStorage.getItem(`savingsBalance_${user.uid}`);
+                setSavingsBalance(savedSavings ? JSON.parse(savedSavings) : 0);
+
+                const savedProfile = localStorage.getItem(`userProfile_${user.uid}`);
+                setProfile(savedProfile ? JSON.parse(savedProfile) : { ...DEFAULT_PROFILE, email: user.email || '' });
+                
+                const savedNotifications = localStorage.getItem(`notificationsEnabled_${user.uid}`);
+                setNotificationsEnabled(savedNotifications ? JSON.parse(savedNotifications) : true);
+
+            } catch (error) {
+                console.error("Failed to parse data from localStorage", error);
+                setPortfolios([]);
+                setExpenses([]);
+                setSavingsBalance(0);
+                setProfile({ ...DEFAULT_PROFILE, email: user.email || '' });
+            }
+        };
+
+        loadUserData();
+    }, [user]);
+
+
     // Data persistence effects
     useEffect(() => {
-        localStorage.setItem('portfolios', JSON.stringify(portfolios));
-    }, [portfolios]);
+        if (user) localStorage.setItem(`portfolios_${user.uid}`, JSON.stringify(portfolios));
+    }, [portfolios, user]);
 
     useEffect(() => {
-        localStorage.setItem('expenses', JSON.stringify(expenses));
-    }, [expenses]);
+        if (user) localStorage.setItem(`expenses_${user.uid}`, JSON.stringify(expenses));
+    }, [expenses, user]);
     
     useEffect(() => {
-        localStorage.setItem('savingsBalance', JSON.stringify(savingsBalance));
-    }, [savingsBalance]);
+        if (user) localStorage.setItem(`savingsBalance_${user.uid}`, JSON.stringify(savingsBalance));
+    }, [savingsBalance, user]);
 
      useEffect(() => {
-        localStorage.setItem('userProfile', JSON.stringify(profile));
-    }, [profile]);
+        if (user) localStorage.setItem(`userProfile_${user.uid}`, JSON.stringify(profile));
+    }, [profile, user]);
     
     useEffect(() => {
-        localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
-    }, [notificationsEnabled]);
+        if (user) localStorage.setItem(`notificationsEnabled_${user.uid}`, JSON.stringify(notificationsEnabled));
+    }, [notificationsEnabled, user]);
 
     // Goal achievement notification logic
     useEffect(() => {
@@ -411,6 +434,13 @@ const App: React.FC = () => {
         setActiveView(View.Portfolios);
     };
 
+    const handleLogout = () => {
+        auth.signOut().catch(error => {
+            console.error("Logout Error:", error);
+            alert("حدث خطأ أثناء تسجيل الخروج.");
+        });
+    };
+
     const handleResetAllData = () => {
         setConfirmation({
             isOpen: true,
@@ -421,7 +451,7 @@ const App: React.FC = () => {
                 setExpenses([]);
                 setSavingsBalance(0);
                 setProfile(DEFAULT_PROFILE);
-                // No need to clear localStorage manually here as useEffects will handle it.
+                // Persistence useEffects will handle clearing user-specific localStorage.
                 closeConfirmation();
             },
         });
@@ -738,6 +768,18 @@ const App: React.FC = () => {
         }
     };
     
+    if (loadingAuth) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex justify-center items-center">
+                <SpinnerIcon className="w-10 h-10" />
+            </div>
+        );
+    }
+
+    if (!user) {
+        return <LoginView />;
+    }
+
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col">
             <div className="flex-grow">
@@ -750,7 +792,7 @@ const App: React.FC = () => {
                                 </div>
                                 <h1 className="text-2xl font-bold tracking-wider hidden sm:block">المحفظة الذكية</h1>
                             </div>
-                            <Header activeView={activeView} setActiveView={setActiveView} />
+                            <Header activeView={activeView} setActiveView={setActiveView} profile={profile} onLogout={handleLogout} />
                         </div>
                     </div>
                 </div>
