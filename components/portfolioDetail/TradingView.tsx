@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Trade } from '../../types';
 import TradeCard from './TradeCard';
@@ -57,6 +58,7 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
 
     const openTrades = sortedTrades.filter(t => t.status === 'open');
     const closedTrades = sortedTrades.filter(t => t.status === 'closed');
+    const hasOpenTrade = openTrades.length > 0;
 
     const monthlyPerformance = useMemo(() => {
         const dataByMonth: { [key: string]: { netProfit: number; winningTrades: number; losingTrades: number; totalInvested: number; date: Date } } = {};
@@ -200,7 +202,9 @@ const TradingView: React.FC<TradingViewProps> = ({ trades, currency, onCloseTrad
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                      <button 
                         onClick={onOpenAddTradeModal} 
-                        className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg transition-colors w-full sm:w-auto"
+                        disabled={hasOpenTrade}
+                        title={hasOpenTrade ? "لا يمكن فتح صفقة جديدة، لديك صفقة مفتوحة بالفعل." : "فتح صفقة جديدة"}
+                        className={`flex items-center gap-2 bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg transition-colors w-full sm:w-auto ${hasOpenTrade ? 'opacity-50 cursor-not-allowed' : 'hover:bg-cyan-600'}`}
                     >
                         <PlusIcon />
                         فتح صفقة جديدة

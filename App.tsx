@@ -296,6 +296,12 @@ const App: React.FC = () => {
             return;
         }
 
+        const hasOpenTrade = portfolio.trades.some(t => t.status === 'open');
+        if (hasOpenTrade) {
+            alert("لا يمكن فتح صفقة جديدة. مسموح بصفقة واحدة مفتوحة فقط في كل محفظة.");
+            return;
+        }
+
         const newTrade: Trade = {
             ...tradeData,
             id: crypto.randomUUID(),
